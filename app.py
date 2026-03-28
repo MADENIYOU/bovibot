@@ -28,12 +28,12 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
 DB_SCHEMA = """
 Tables MySQL disponibles :
 races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
-animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id)
-pesees(id, animal_id, poids_kg, date_pesee, agent)
-sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv)
-reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec])
+animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id, notes, created_at)
+pesees(id, animal_id, poids_kg, date_pesee, agent, notes, created_at)
+sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv, created_at)
+reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec], notes)
 alimentation(id, animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
-ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
+ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa, notes, created_at)
 alertes(id, animal_id, type, message, niveau[info/warning/critical], date_creation, traitee)
 historique_statut(id, animal_id, ancien_statut, nouveau_statut, date_changement)
 
