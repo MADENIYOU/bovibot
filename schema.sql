@@ -133,32 +133,43 @@ BEGIN
     DECLARE v_jours INT;
     DECLARE v_gmq   DECIMAL(6,2);
 
-    -- Insérer la pesée
-    INSERT INTO pesees (animal_id, poids_kg, date_pesee, agent)
-    VALUES (p_animal_id, p_poids_kg, p_date, p_agent);
+    -- Gestionnaire d'erreur ACID : annule tout si problème
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
 
-    -- Mettre à jour le poids actuel de l'animal
-    UPDATE animaux SET poids_actuel = p_poids_kg WHERE id = p_animal_id;
+    START TRANSACTION;
 
-    -- Vérifier le GMQ (gain moyen quotidien)
-    SELECT poids_kg, DATEDIFF(p_date, date_pesee)
-    INTO v_derniere_pesee, v_jours
-    FROM pesees
-    WHERE animal_id = p_animal_id
-      AND date_pesee < p_date
-    ORDER BY date_pesee DESC
-    LIMIT 1;
+        -- Insérer la pesée
+        INSERT INTO pesees (animal_id, poids_kg, date_pesee, agent)
+        VALUES (p_animal_id, p_poids_kg, p_date, p_agent);
 
-    IF v_derniere_pesee IS NOT NULL AND v_jours > 0 THEN
-        SET v_gmq = (p_poids_kg - v_derniere_pesee) / v_jours;
-        -- Alerte si GMQ < 300g/jour
-        IF v_gmq < 0.3 THEN
-            INSERT INTO alertes (animal_id, type, message, niveau)
-            VALUES (p_animal_id, 'poids',
-                CONCAT('GMQ faible : ', ROUND(v_gmq * 1000), ' g/jour (seuil : 300 g/jour)'),
-                'warning');
+        -- Mettre à jour le poids actuel
+        UPDATE animaux SET poids_actuel = p_poids_kg WHERE id = p_animal_id;
+
+        -- Calculer le GMQ
+        SELECT poids_kg, DATEDIFF(p_date, date_pesee)
+        INTO v_derniere_pesee, v_jours
+        FROM pesees
+        WHERE animal_id = p_animal_id
+          AND date_pesee < p_date
+        ORDER BY date_pesee DESC
+        LIMIT 1;
+
+        -- Alerte si GMQ faible
+        IF v_derniere_pesee IS NOT NULL AND v_jours > 0 THEN
+            SET v_gmq = (p_poids_kg - v_derniere_pesee) / v_jours;
+            IF v_gmq < 0.3 THEN
+                INSERT INTO alertes (animal_id, type, message, niveau)
+                VALUES (p_animal_id, 'poids',
+                    CONCAT('GMQ faible : ', ROUND(v_gmq * 1000), ' g/jour (seuil : 300 g/jour)'),
+                    'warning');
+            END IF;
         END IF;
-    END IF;
+
+    COMMIT;
 END$$
 
 -- Procédure : déclarer une vente
@@ -171,21 +182,35 @@ CREATE PROCEDURE sp_declarer_vente(
     IN p_date_vente  DATE
 )
 BEGIN
-    -- Vérifier que l'animal est actif
     DECLARE v_statut VARCHAR(20);
-    SELECT statut INTO v_statut FROM animaux WHERE id = p_animal_id;
 
-    IF v_statut != 'actif' THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Cet animal ne peut pas être vendu (statut non actif)';
-    END IF;
+    -- Gestionnaire d'erreur ACID : annule tout si problème
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
 
-    -- Enregistrer la vente
-    INSERT INTO ventes (animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
-    VALUES (p_animal_id, p_acheteur, p_telephone, p_date_vente, p_poids_vente, p_prix);
+    START TRANSACTION;
 
-    -- Changer le statut de l'animal
-    UPDATE animaux SET statut = 'vendu' WHERE id = p_animal_id;
+        -- Vérifier que l'animal est actif
+        SELECT statut INTO v_statut 
+        FROM animaux 
+        WHERE id = p_animal_id;
+
+        IF v_statut != 'actif' THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Cet animal ne peut pas être vendu (statut non actif)';
+        END IF;
+
+        -- Enregistrer la vente
+        INSERT INTO ventes (animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
+        VALUES (p_animal_id, p_acheteur, p_telephone, p_date_vente, p_poids_vente, p_prix);
+
+        -- Changer le statut de l'animal
+        UPDATE animaux SET statut = 'vendu' WHERE id = p_animal_id;
+
+    COMMIT;
 END$$
 
 -- ─── FONCTIONS ────────────────────────────────────────────────
