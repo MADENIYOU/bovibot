@@ -222,8 +222,12 @@ SELECT COUNT(*) AS nb_alertes_avant
 FROM alertes
 WHERE type = 'autre' AND animal_id IS NULL;
 
--- Exécution forcée de la logique de l'event (contournement du scheduler)
-BEGIN NOT ATOMIC
+-- Exécution forcée via procédure temporaire (même logique que l'event)
+DROP PROCEDURE IF EXISTS test_bloc7;
+
+DELIMITER $$
+CREATE PROCEDURE test_bloc7()
+BEGIN
     DECLARE v_nb_animaux INT;
 
     SELECT COUNT(*) INTO v_nb_animaux FROM animaux WHERE statut = 'actif';
@@ -232,24 +236,27 @@ BEGIN NOT ATOMIC
     VALUES (NULL, 'autre',
         CONCAT('Rapport hebdo : ', v_nb_animaux, ' animaux actifs. Consultez le tableau de bord pour les détails.'),
         'info');
-END;
+END$$
+DELIMITER ;
+
+CALL test_bloc7();
+DROP PROCEDURE IF EXISTS test_bloc7;
 
 -- Vérification : une alerte a bien été insérée
 SELECT
     a.message,
     a.niveau,
     a.animal_id,
-    IF(a.animal_id IS NULL,          'PASS', 'FAIL') AS test_animal_null,
-    IF(a.niveau    = 'info',         'PASS', 'FAIL') AS test_niveau,
+    IF(a.animal_id IS NULL,             'PASS', 'FAIL') AS test_animal_null,
+    IF(a.niveau = 'info',               'PASS', 'FAIL') AS test_niveau,
     IF(a.message LIKE 'Rapport hebdo%', 'PASS', 'FAIL') AS test_message
 FROM alertes a
 WHERE a.type = 'autre' AND a.animal_id IS NULL
 ORDER BY a.date_creation DESC
 LIMIT 1;
 
--- Vérification que le nb d'animaux dans le message est cohérent
-SELECT
-    COUNT(*) AS nb_actifs_attendus
+-- Vérification cohérence du nombre d'animaux actifs
+SELECT COUNT(*) AS nb_actifs_attendus
 FROM animaux WHERE statut = 'actif';
 
 -- Nettoyage Bloc 7
