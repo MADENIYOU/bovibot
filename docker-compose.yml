@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Base de données MySQL 8.0
+  db:
+    image: mysql:8.0
+    container_name: bovibot_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: bovibot
+      MYSQL_ROOT_PASSWORD: root
+    command: --event-scheduler=ON
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-proot"]
+      timeout: 20s
+      retries: 10
+    ports:
+      - "3306:3306"
+    volumes:
+      # Initialisation automatique : les scripts .sql sont exécutés par ordre alphabétique
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./data/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql
+      # Persistance des données (optionnel pour un test à blanc)
+      - bovibot_mysql_data:/var/lib/mysql
+
+  # Backend FastAPI
+  api:
+    build: .
+    container_name: bovibot_api
+    restart: always
+    ports:
+      - "8002:8002"
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=bovibot
+      # Variables optionnelles pour LLM (à renseigner si nécessaire)
+      - OPENAI_API_KEY=votre_cle_ici
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  bovibot_mysql_data:
