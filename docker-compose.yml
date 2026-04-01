@@ -30,13 +30,8 @@ services:
     restart: always
     ports:
       - "8002:8002"
-    environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=root
-      - DB_NAME=bovibot
-      # Variables optionnelles pour LLM (à renseigner si nécessaire)
-      - OPENAI_API_KEY=votre_cle_ici
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
