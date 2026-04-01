@@ -162,11 +162,18 @@ async function traiterAlerte(id) {
 
 function ask(q) { document.getElementById('user-input').value = q; sendMessage(); }
 
+function escapeHTML(str) {
+  const p = document.createElement('p');
+  p.textContent = str;
+  return p.innerHTML;
+}
+
 function addMessage(role, text, sql=null, extra=null) {
   const box = document.getElementById('chat-box');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  let html = `<div class="bubble">${text}${sql?`<div class="sql-preview">${sql}</div>`:''}</div>`;
+  // On échappe le texte pour éviter l'injection de script (XSS)
+  let html = `<div class="bubble">${escapeHTML(text)}${sql?`<div class="sql-preview">${escapeHTML(sql)}</div>`:''}</div>`;
   if (extra) html += extra;
   div.innerHTML = html;
   box.appendChild(div);
@@ -226,8 +233,11 @@ async function sendMessage() {
     if (data.data && data.data.length > 0) {
       document.getElementById('results-section').style.display = 'block';
       const keys = Object.keys(data.data[0]);
-      const rows = data.data.map(row=>`<tr>${keys.map(k=>`<td>${row[k]??''}</td>`).join('')}</tr>`).join('');
-      document.getElementById('results-table').innerHTML = `<table><thead><tr>${keys.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+      // On utilise escapeHTML pour chaque cellule du tableau
+      const rows = data.data.map(row => 
+        `<tr>${keys.map(k => `<td>${escapeHTML(String(row[k] ?? ''))}</td>`).join('')}</tr>`
+      ).join('');
+      document.getElementById('results-table').innerHTML = `<table><thead><tr>${keys.map(k => `<th>${escapeHTML(k)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
     }
     document.getElementById('chat-box').scrollTop = 9999;
   } catch(e) {

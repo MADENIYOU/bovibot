@@ -86,12 +86,16 @@ IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou un
 
 # ── Sécurité ────────────────────────────────────────────────────
 def validate_sql(sql: str):
-    """Vérifie que la requête SQL est une consultation (SELECT) uniquement"""
+    """Vérifie que la requête SQL est une consultation (SELECT) uniquement et bloque l'exfiltration"""
     # Nettoyage et normalisation
     clean_sql = sql.strip().upper()
     
-    # Liste noire de mots-clés interdits dans une requête de consultation
-    forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE", "EXEC", "CALL"]
+    # Liste noire étendue : manipulation + exfiltration
+    forbidden = [
+        "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", 
+        "GRANT", "REVOKE", "EXEC", "CALL", "UNION", "INTO", "OUTFILE", 
+        "LOAD_FILE", "INFORMATION_SCHEMA", "SCHEMA", "DUMPFILE"
+    ]
     
     if not clean_sql.startswith("SELECT"):
         raise HTTPException(status_code=400, detail="Seules les requêtes de type SELECT sont autorisées pour la consultation.")
@@ -275,6 +279,9 @@ def dashboard():
         "alertes_critiques": "SELECT COUNT(*) as n FROM alertes WHERE traitee=FALSE AND niveau='critical'",
         "ventes_mois":       "SELECT COUNT(*) as n FROM ventes WHERE MONTH(date_vente)=MONTH(NOW())",
         "ca_mois":           "SELECT COALESCE(SUM(prix_fcfa),0) as n FROM ventes WHERE MONTH(date_vente)=MONTH(NOW())",
+        "gmq_moyen":         "SELECT COALESCE(AVG(fn_gmq(id)), 0) as n FROM animaux WHERE statut='actif'",
+        "vaccines_annee":    "SELECT COUNT(DISTINCT animal_id) as n FROM sante WHERE type='vaccination' AND date_acte >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)",
+        "rdv_a_venir":       "SELECT COUNT(*) as n FROM sante WHERE prochain_rdv >= CURDATE()"
     }
     for k, sql in queries.items():
         result = execute_query(sql)
