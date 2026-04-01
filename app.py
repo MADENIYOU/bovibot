@@ -1,5 +1,5 @@
 """
-BoviBot — Squelette Backend FastAPI
+BoviBot — Backend FastAPI
 Gestion d'élevage bovin avec LLM + PL/SQL
 Projet L3 — ESP/UCAD
 """
@@ -7,6 +7,7 @@ Projet L3 — ESP/UCAD
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
 import mysql.connector
 import os, re, json, httpx
 
@@ -29,52 +30,54 @@ DB_SCHEMA = """
 Tables MySQL :
 - races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
 - animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id, notes, created_at)
-  (Clés étrangères : race_id -> races.id, mere_id -> animaux.id, pere_id -> animaux.id)
-- pesees(id, animal_id, poids_kg, date_pesee, agent, notes, created_at)
-- sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv, created_at)
-- reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec], notes)
+  (Note : numero_tag est l'identifiant unique visible (ex: TAG-001). race_id -> races.id)
+- pesees(id, animal_id, poids_kg, date_pesee, agent, notes)
+- sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv)
+- reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec])
 - alimentation(id, animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
-- ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa, notes, created_at)
-- alertes(id, animal_id, type, message, niveau[info/warning/critical], date_creation, traitee)
+- ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
+- alertes(id, animal_id, type, message, niveau[info/warning/critical], traitee)
 - historique_statut(id, animal_id, ancien_statut, nouveau_statut, date_changement)
 
 Fonctions :
-- fn_age_en_mois(animal_id) -> INT (Retourne l'âge actuel en mois)
-- fn_gmq(animal_id) -> DECIMAL (Retourne le gain moyen quotidien en kg/jour)
-- fn_cout_total_elevage(animal_id) -> DECIMAL (Retourne le coût cumulé alimentation + santé pour un animal)
+- fn_age_en_mois(animal_id) -> INT
+- fn_gmq(animal_id) -> DECIMAL (gain moyen quotidien en kg/jour)
+- fn_cout_total_elevage(animal_id) -> DECIMAL (somme cumulée alimentation + santé)
 """
 
-SYSTEM_PROMPT = f"""Tu es BoviBot, l'assistant IA expert d'un élevage bovin.
+def get_system_prompt():
+    today = datetime.now().strftime("%Y-%m-%d")
+    return f"""Tu es BoviBot, l'assistant IA expert d'un élevage bovin.
 Tu aides l'éleveur à gérer son troupeau en traduisant ses demandes en SQL ou en actions.
+Nous sommes le {today}.
 
 {DB_SCHEMA}
 
 ### BLOC 1 — FORMAT DE RÉPONSE OBLIGATOIRE
-Réponds exclusivement en JSON pur, sans aucun bloc de code markdown (pas de ```json).
-Structure :
-- Consultation : {{"type":"query", "sql":"SELECT ...", "explication":"Phrase en français"}}
-- Action : {{"type":"action", "action":"nom_procedure", "params":{{...}}, "explication":"Phrase en français", "confirmation":"Résumé court pour confirmation"}}
-- Info/Clarification : {{"type":"info", "sql":null, "explication":"Question ou information"}}
+Réponds exclusivement en JSON pur, sans markdown.
+- Consultation : {{"type":"query", "sql":"SELECT ...", "explication":"..."}}
+- Action : {{"type":"action", "action":"nom_procedure", "params":{{...}}, "explication":"...", "confirmation":"..."}}
+- Info : {{"type":"info", "sql":null, "explication":"..."}}
 
 ### BLOC 2 — RÈGLES SQL
-- Toujours filtrer sur `statut='actif'` pour les animaux, sauf si l'utilisateur demande explicitement les archives ou un autre statut.
-- Utiliser systématiquement `fn_age_en_mois(a.id)` pour l'âge et `fn_gmq(a.id)` pour le GMQ (Gain Moyen Quotidien).
-- Utiliser `fn_cout_total_elevage(a.id)` pour toute question relative aux coûts, dépenses ou rentabilité par animal.
-- Ne jamais générer de requêtes DELETE, DROP ou TRUNCATE.
-- Limiter les résultats à 100 maximum.
+- Filtrer `statut='actif'` par défaut sauf demande explicite.
+- Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)` et `fn_cout_total_elevage(a.id)`.
+- Ne jamais générer de DELETE ou DROP. Limiter à 100 résultats.
 
 ### BLOC 3 — PROCÉDURES DISPONIBLES
 1. sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
-   - Mots-clés : "enregistre pesée", "pèse", "nouveau poids", "pesée de"
+- Mots-clés : "enregistre pesée", "pèse", "nouveau poids", "pesée de"
 2. sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa, poids_vente_kg, date_vente)
-   - Mots-clés : "déclare vente", "vends", "cède l'animal", "vendu à"
+- Mots-clés : "déclare vente", "vends", "cède l'animal", "vendu à"
 3. sp_rapport_nutritionnel(animal_id)
-   - Mots-clés : "rapport nutritionnel", "consommation", "ration", "combien il mange"
+- Mots-clés : "rapport nutritionnel", "consommation", "ration", "combien il mange"
 
-### BLOC 4 — COMPORTEMENT EN CAS D'AMBIGUÏTÉ
-- Si un `animal_id` est nécessaire pour une action mais n'est pas fourni (ou si le TAG est fourni mais l'ID inconnu), retourne un type "info" demandant de préciser l'animal.
-- Ne jamais inventer d'ID. Si tu as un numero_tag, cherche d'abord l'ID avec une requête SQL si c'est une consultation, ou demande confirmation si c'est une action.
-- Pour les actions, si tu n'as pas l'ID mais le TAG, suggère d'abord de vérifier l'animal.
+IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou une date au format YYYY-MM-DD. Ne jamais mettre 'CURDATE()' dans les params JSON.
+
+### BLOC 4 — RÉSOLUTION DES IDENTIFIANTS
+- L'éleveur utilise le `numero_tag` (ex: TAG-001).
+- Consultation : Fais une jointure ou un WHERE sur `numero_tag`.
+- Action : Si tu n'as pas l'ID technique (animal_id), retourne un type 'info' demandant de confirmer l'animal ou cherche l'ID via une requête préalable. Ne jamais inventer d'ID.
 """
 
 # ── Connexion MySQL ─────────────────────────────────────────────
@@ -120,7 +123,7 @@ def call_procedure(name: str, params: dict):
 
 # ── Appel LLM ──────────────────────────────────────────────────
 async def ask_llm(question: str, history: list = []) -> dict:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": get_system_prompt()}]
     messages += history[-6:]  # contexte des 3 derniers échanges
     messages.append({"role": "user", "content": question})
     async with httpx.AsyncClient() as client:
@@ -225,7 +228,6 @@ def get_animal_cout_total(animal_id: int):
 
 @app.post("/api/animaux/{animal_id}/rapport-nutritionnel")
 def post_animal_rapport_nutritionnel(animal_id: int):
-    # Cette route déclenche la procédure qui insère une alerte et retourne les données
     return call_procedure("sp_rapport_nutritionnel", {"animal_id": animal_id})
 
 @app.get("/api/animaux/{animal_id}/historique-statut")
