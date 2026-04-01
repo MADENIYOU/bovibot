@@ -1,5 +1,5 @@
 """
-BoviBot — Squelette Backend FastAPI
+BoviBot — Backend FastAPI
 Gestion d'élevage bovin avec LLM + PL/SQL
 Projet L3 — ESP/UCAD
 """
@@ -7,6 +7,7 @@ Projet L3 — ESP/UCAD
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
 import mysql.connector
 import os, re, json, httpx
 
@@ -26,58 +27,75 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
 
 # ── Schéma BDD pour le prompt ───────────────────────────────────
 DB_SCHEMA = """
-Tables MySQL disponibles :
-races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
-animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id, notes, created_at)
-pesees(id, animal_id, poids_kg, date_pesee, agent, notes, created_at)
-sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv, created_at)
-reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec], notes)
-alimentation(id, animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
-ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa, notes, created_at)
-alertes(id, animal_id, type, message, niveau[info/warning/critical], date_creation, traitee)
-historique_statut(id, animal_id, ancien_statut, nouveau_statut, date_changement)
+Tables MySQL :
+- races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
+- animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id, notes, created_at)
+  (Note : numero_tag est l'identifiant unique visible (ex: TAG-001). race_id -> races.id)
+- pesees(id, animal_id, poids_kg, date_pesee, agent, notes)
+- sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv)
+- reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec])
+- alimentation(id, animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
+- ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
+- alertes(id, animal_id, type, message, niveau[info/warning/critical], traitee)
+- historique_statut(id, animal_id, ancien_statut, nouveau_statut, date_changement)
 
-Fonctions disponibles :
-- fn_age_en_mois(animal_id) → INT
-- fn_gmq(animal_id) → DECIMAL (gain moyen quotidien en kg/jour)
+Fonctions :
+- fn_age_en_mois(animal_id) -> INT
+- fn_gmq(animal_id) -> DECIMAL (gain moyen quotidien en kg/jour)
+- fn_cout_total_elevage(animal_id) -> DECIMAL (somme cumulée alimentation + santé)
 
 Procédures disponibles :
 - sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
 - sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa, poids_vente_kg, date_vente)
 """
 
-SYSTEM_PROMPT = f"""Tu es BoviBot, l'assistant IA d'un élevage bovin.
-Tu aides l'éleveur à gérer son troupeau en langage naturel.
+def get_system_prompt():
+    today = datetime.now().strftime("%Y-%m-%d")
+    return f"""Tu es BoviBot, l'assistant IA expert d'un élevage bovin.
+Tu aides l'éleveur à gérer son troupeau en traduisant ses demandes en SQL ou en actions.
+Nous sommes le {today}.
 
 {DB_SCHEMA}
 
-Tu peux répondre à deux types de demandes :
-1. CONSULTATION : Requête SQL SELECT pour afficher des données
-2. ACTION : Appel de procédure stockée (pesée, vente)
+### BLOC 1 — FORMAT DE RÉPONSE OBLIGATOIRE
+Réponds exclusivement en JSON pur, sans markdown.
+- Consultation : {{"type":"query", "sql":"SELECT ...", "explication":"..."}}
+- Action : {{"type":"action", "action":"nom_procedure", "params":{{...}}, "explication":"...", "confirmation":"..."}}
+- Info : {{"type":"info", "sql":null, "explication":"..."}}
 
-Réponds TOUJOURS en JSON :
-Consultation : {{"type":"query","sql":"SELECT ...","explication":"..."}}
-Action pesée : {{"type":"action","action":"sp_enregistrer_pesee","params":{{"animal_id":1,"poids_kg":320.5,"date":"2026-03-27","agent":"Nom"}},"explication":"...","confirmation":"Résumé pour confirmation"}}
-Action vente : {{"type":"action","action":"sp_declarer_vente","params":{{"animal_id":1,"acheteur":"Nom","telephone":"+221...","prix_fcfa":450000,"poids_vente_kg":310.0,"date_vente":"2026-03-27"}},"explication":"...","confirmation":"Résumé pour confirmation"}}
-Info directe  : {{"type":"info","sql":null,"explication":"..."}}
+### BLOC 2 — RÈGLES SQL
+- Filtrer `statut='actif'` par défaut sauf demande explicite.
+- Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)` et `fn_cout_total_elevage(a.id)`.
+- Ne jamais générer de DELETE ou DROP. Limiter à 100 résultats.
 
-RÈGLES :
-- Requêtes SELECT uniquement pour les consultations (LIMIT 100)
-- Les actions nécessitent une confirmation explicite de l'utilisateur
-- Toujours utiliser les fonctions fn_age_en_mois() et fn_gmq() dans les requêtes pertinentes
-- Dates au format YYYY-MM-DD
+### BLOC 3 — PROCÉDURES DISPONIBLES
+1. sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
+- Mots-clés : "enregistre pesée", "pèse", "nouveau poids", "pesée de"
+2. sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa, poids_vente_kg, date_vente)
+- Mots-clés : "déclare vente", "vends", "cède l'animal", "vendu à"
+3. sp_rapport_nutritionnel(animal_id)
+- Mots-clés : "rapport nutritionnel", "consommation", "ration", "combien il mange"
+
+IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou une date au format YYYY-MM-DD. Ne jamais mettre 'CURDATE()' dans les params JSON.
+
+### BLOC 4 — RÉSOLUTION DES IDENTIFIANTS
+- L'éleveur utilise le `numero_tag` (ex: TAG-001).
+- Consultation : Fais une jointure ou un WHERE sur `numero_tag`.
+- Action : Si tu n'as pas l'ID technique (animal_id), retourne un type 'info' demandant de confirmer l'animal ou cherche l'ID via une requête préalable. Ne jamais inventer d'ID.
 """
 
 # ── Connexion MySQL ─────────────────────────────────────────────
 def get_db():
     return mysql.connector.connect(**DB_CONFIG)
 
-def execute_query(sql: str):
+def execute_query(sql: str, params: list = None):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute(sql)
+        cursor.execute(sql, params or [])
         return cursor.fetchall()
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Erreur base de données : {err.msg}")
     finally:
         cursor.close(); conn.close()
 
@@ -97,29 +115,43 @@ def call_procedure(name: str, params: dict):
                 params.get("telephone", ""), params["prix_fcfa"],
                 params.get("poids_vente_kg", 0), params["date_vente"]
             ])
+        elif name == "sp_rapport_nutritionnel":
+            cursor.callproc("sp_rapport_nutritionnel", [params["animal_id"]])
         conn.commit()
         return {"success": True}
+    except mysql.connector.Error as err:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=f"Erreur PL/SQL : {err.msg}")
     finally:
         cursor.close(); conn.close()
 
 # ── Appel LLM ──────────────────────────────────────────────────
 async def ask_llm(question: str, history: list = []) -> dict:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": get_system_prompt()}]
     messages += history[-6:]  # contexte des 3 derniers échanges
     messages.append({"role": "user", "content": question})
     async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{LLM_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {LLM_API_KEY}"},
-            json={"model": LLM_MODEL, "messages": messages, "temperature": 0},
-            timeout=30,
-        )
-        r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
-        match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        raise ValueError("Réponse LLM invalide")
+        try:
+            r = await client.post(
+                f"{LLM_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+                json={"model": LLM_MODEL, "messages": messages, "temperature": 0},
+                timeout=30,
+            )
+            r.raise_for_status()
+            content = r.json()["choices"][0]["message"]["content"]
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+            raise ValueError("L'IA a renvoyé un format invalide.")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise HTTPException(status_code=401, detail="Clé API LLM invalide ou expirée.")
+            if e.response.status_code == 429:
+                raise HTTPException(status_code=429, detail="Quota LLM dépassé ou trop de requêtes.")
+            raise HTTPException(status_code=e.response.status_code, detail=f"Erreur LLM : {e}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erreur technique : {str(e)}")
 
 # ── Routes API ──────────────────────────────────────────────────
 class ChatMessage(BaseModel):
@@ -159,8 +191,10 @@ async def chat(msg: ChatMessage):
         else:
             return {"type":"info","answer":llm.get("explication",""),"data":[]}
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Une erreur est survenue : {str(e)}")
 
 @app.get("/api/dashboard")
 def dashboard():
@@ -189,6 +223,33 @@ def get_animaux():
         LEFT JOIN races r ON a.race_id = r.id
         WHERE a.statut = 'actif'
         ORDER BY a.numero_tag
+    """)
+
+@app.get("/api/animaux/{animal_id}/cout-total")
+def get_animal_cout_total(animal_id: int):
+    result = execute_query("SELECT fn_cout_total_elevage(%s) as cout", [animal_id])
+    return result[0] if result else {"cout": 0}
+
+@app.post("/api/animaux/{animal_id}/rapport-nutritionnel")
+def post_animal_rapport_nutritionnel(animal_id: int):
+    return call_procedure("sp_rapport_nutritionnel", {"animal_id": animal_id})
+
+@app.get("/api/animaux/{animal_id}/historique-statut")
+def get_animal_historique(animal_id: int):
+    return execute_query("SELECT * FROM historique_statut WHERE animal_id=%s ORDER BY date_changement DESC", [animal_id])
+
+@app.get("/api/animaux/{animal_id}/pesees")
+def get_animal_pesees(animal_id: int):
+    return execute_query("SELECT * FROM pesees WHERE animal_id=%s ORDER BY date_pesee DESC", [animal_id])
+
+@app.get("/api/sante")
+def get_sante_globale():
+    return execute_query("""
+        SELECT s.*, a.numero_tag, a.nom as animal_nom 
+        FROM sante s
+        JOIN animaux a ON s.animal_id = a.id 
+        ORDER BY s.date_acte DESC 
+        LIMIT 50
     """)
 
 @app.get("/api/alertes")
