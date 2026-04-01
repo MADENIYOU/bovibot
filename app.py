@@ -84,11 +84,79 @@ IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou un
 - Action : Si tu n'as pas l'ID technique (animal_id), retourne un type 'info' demandant de confirmer l'animal ou cherche l'ID via une requête préalable. Ne jamais inventer d'ID.
 """
 
+# ── Sécurité ────────────────────────────────────────────────────
+def validate_sql(sql: str):
+    """Vérifie que la requête SQL est une consultation (SELECT) uniquement et bloque l'exfiltration"""
+    # Nettoyage et normalisation
+    clean_sql = sql.strip().upper()
+    
+    # Liste noire étendue : manipulation + exfiltration
+    forbidden = [
+        "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", 
+        "GRANT", "REVOKE", "EXEC", "CALL", "UNION", "INTO", "OUTFILE", 
+        "LOAD_FILE", "INFORMATION_SCHEMA", "SCHEMA", "DUMPFILE"
+    ]
+    
+    if not clean_sql.startswith("SELECT"):
+        raise HTTPException(status_code=400, detail="Seules les requêtes de type SELECT sont autorisées pour la consultation.")
+    
+    for word in forbidden:
+        # On vérifie avec des regex ou des espaces pour éviter les faux positifs (ex: "SELECT ... FROM ...")
+        if re.search(rf"\b{word}\b", clean_sql):
+            raise HTTPException(status_code=400, detail=f"Mot-clé interdit détecté dans la requête SQL : {word}")
+
+def sanitize_input(text: str) -> str:
+    """Filtrage renforcé contre les tentatives d'injection de prompt"""
+    # Liste étendue de patterns suspects (Prompt Injection, Jailbreak, Exfiltration)
+    suspicious_patterns = [
+        r"ignore.*instructions",
+        r"system prompt",
+        r"tu es maintenant",
+        r"forget.*previous",
+        r"n'écoute plus",
+        r"réponds en tant que",
+        r"dévoile.*prompt",
+        r"jailbreak",
+        r"do anything now",
+        r"dan mode",
+        r"imagine que",
+        r"hypothetical scenario",
+        r"nouvelles instructions",
+        r"recommence à zéro",
+        r"start from scratch",
+        r"affiche.*le code",
+        r"contenu de ton prompt",
+        r"règles de sécurité",
+        r"bypass",
+        r"contourne",
+        r"supprime.*données",
+        r"mot de passe",
+        r"clé api",
+        r"api key",
+        r"config",
+        r"secret",
+        r"base64",
+        r"rot13",
+        r"traduis.*en.*sql"
+    ]
+    
+    clean_text = text.lower()
+    for pattern in suspicious_patterns:
+        if re.search(pattern, clean_text):
+            # Au lieu de bloquer, on pourrait aussi simplement logger et nettoyer, 
+            # mais bloquer est plus sûr pour un projet académique.
+            raise HTTPException(status_code=400, detail="Requête suspecte détectée (Prompt Injection).")
+    
+    return text
+
 # ── Connexion MySQL ─────────────────────────────────────────────
 def get_db():
     return mysql.connector.connect(**DB_CONFIG)
 
 def execute_query(sql: str, params: list = None):
+    # Validation de sécurité avant exécution
+    validate_sql(sql)
+    
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -163,6 +231,9 @@ class ChatMessage(BaseModel):
 @app.post("/api/chat")
 async def chat(msg: ChatMessage):
     try:
+        # 1. Protection contre le prompt injection
+        msg.question = sanitize_input(msg.question)
+        
         # Si l'utilisateur confirme une action en attente
         if msg.confirm_action and msg.pending_action:
             result = call_procedure(msg.pending_action["action"], msg.pending_action["params"])
@@ -208,6 +279,9 @@ def dashboard():
         "alertes_critiques": "SELECT COUNT(*) as n FROM alertes WHERE traitee=FALSE AND niveau='critical'",
         "ventes_mois":       "SELECT COUNT(*) as n FROM ventes WHERE MONTH(date_vente)=MONTH(NOW())",
         "ca_mois":           "SELECT COALESCE(SUM(prix_fcfa),0) as n FROM ventes WHERE MONTH(date_vente)=MONTH(NOW())",
+        "gmq_moyen":         "SELECT COALESCE(AVG(fn_gmq(id)), 0) as n FROM animaux WHERE statut='actif'",
+        "vaccines_annee":    "SELECT COUNT(DISTINCT animal_id) as n FROM sante WHERE type='vaccination' AND date_acte >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)",
+        "rdv_a_venir":       "SELECT COUNT(*) as n FROM sante WHERE prochain_rdv >= CURDATE()"
     }
     for k, sql in queries.items():
         result = execute_query(sql)
