@@ -81,12 +81,14 @@ Structure :
 def get_db():
     return mysql.connector.connect(**DB_CONFIG)
 
-def execute_query(sql: str):
+def execute_query(sql: str, params: list = None):
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute(sql)
+        cursor.execute(sql, params or [])
         return cursor.fetchall()
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"Erreur base de données : {err.msg}")
     finally:
         cursor.close(); conn.close()
 
@@ -110,6 +112,9 @@ def call_procedure(name: str, params: dict):
             cursor.callproc("sp_rapport_nutritionnel", [params["animal_id"]])
         conn.commit()
         return {"success": True}
+    except mysql.connector.Error as err:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=f"Erreur PL/SQL : {err.msg}")
     finally:
         cursor.close(); conn.close()
 
@@ -119,18 +124,27 @@ async def ask_llm(question: str, history: list = []) -> dict:
     messages += history[-6:]  # contexte des 3 derniers échanges
     messages.append({"role": "user", "content": question})
     async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{LLM_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {LLM_API_KEY}"},
-            json={"model": LLM_MODEL, "messages": messages, "temperature": 0},
-            timeout=30,
-        )
-        r.raise_for_status()
-        content = r.json()["choices"][0]["message"]["content"]
-        match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        raise ValueError("Réponse LLM invalide")
+        try:
+            r = await client.post(
+                f"{LLM_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+                json={"model": LLM_MODEL, "messages": messages, "temperature": 0},
+                timeout=30,
+            )
+            r.raise_for_status()
+            content = r.json()["choices"][0]["message"]["content"]
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+            raise ValueError("L'IA a renvoyé un format invalide.")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise HTTPException(status_code=401, detail="Clé API LLM invalide ou expirée.")
+            if e.response.status_code == 429:
+                raise HTTPException(status_code=429, detail="Quota LLM dépassé ou trop de requêtes.")
+            raise HTTPException(status_code=e.response.status_code, detail=f"Erreur LLM : {e}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erreur technique : {str(e)}")
 
 # ── Routes API ──────────────────────────────────────────────────
 class ChatMessage(BaseModel):
@@ -170,8 +184,10 @@ async def chat(msg: ChatMessage):
         else:
             return {"type":"info","answer":llm.get("explication",""),"data":[]}
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Une erreur est survenue : {str(e)}")
 
 @app.get("/api/dashboard")
 def dashboard():
@@ -200,6 +216,34 @@ def get_animaux():
         LEFT JOIN races r ON a.race_id = r.id
         WHERE a.statut = 'actif'
         ORDER BY a.numero_tag
+    """)
+
+@app.get("/api/animaux/{animal_id}/cout-total")
+def get_animal_cout_total(animal_id: int):
+    result = execute_query("SELECT fn_cout_total_elevage(%s) as cout", [animal_id])
+    return result[0] if result else {"cout": 0}
+
+@app.post("/api/animaux/{animal_id}/rapport-nutritionnel")
+def post_animal_rapport_nutritionnel(animal_id: int):
+    # Cette route déclenche la procédure qui insère une alerte et retourne les données
+    return call_procedure("sp_rapport_nutritionnel", {"animal_id": animal_id})
+
+@app.get("/api/animaux/{animal_id}/historique-statut")
+def get_animal_historique(animal_id: int):
+    return execute_query("SELECT * FROM historique_statut WHERE animal_id=%s ORDER BY date_changement DESC", [animal_id])
+
+@app.get("/api/animaux/{animal_id}/pesees")
+def get_animal_pesees(animal_id: int):
+    return execute_query("SELECT * FROM pesees WHERE animal_id=%s ORDER BY date_pesee DESC", [animal_id])
+
+@app.get("/api/sante")
+def get_sante_globale():
+    return execute_query("""
+        SELECT s.*, a.numero_tag, a.nom as animal_nom 
+        FROM sante s
+        JOIN animaux a ON s.animal_id = a.id 
+        ORDER BY s.date_acte DESC 
+        LIMIT 50
     """)
 
 @app.get("/api/alertes")
