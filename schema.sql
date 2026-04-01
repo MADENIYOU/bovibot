@@ -9,7 +9,7 @@ USE bovibot;
 
 -- ─── TABLES ──────────────────────────────────────────────────
 
-CREATE TABLE races (
+CREATE TABLE IF NOT EXISTS races (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
     origine VARCHAR(100),
@@ -17,7 +17,7 @@ CREATE TABLE races (
     production_lait_litre_jour DECIMAL(6,2) DEFAULT 0
 );
 
-CREATE TABLE animaux (
+CREATE TABLE IF NOT EXISTS animaux (
     id INT AUTO_INCREMENT PRIMARY KEY,
     numero_tag VARCHAR(30) NOT NULL UNIQUE,
     nom VARCHAR(100),
@@ -35,7 +35,7 @@ CREATE TABLE animaux (
     FOREIGN KEY (pere_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE pesees (
+CREATE TABLE IF NOT EXISTS pesees (
     id INT AUTO_INCREMENT PRIMARY KEY,
     animal_id INT NOT NULL,
     poids_kg DECIMAL(6,2) NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE pesees (
     FOREIGN KEY (animal_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE sante (
+CREATE TABLE IF NOT EXISTS sante (
     id INT AUTO_INCREMENT PRIMARY KEY,
     animal_id INT NOT NULL,
     type ENUM('vaccination','traitement','examen','chirurgie') NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE sante (
     FOREIGN KEY (animal_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE reproduction (
+CREATE TABLE IF NOT EXISTS reproduction (
     id INT AUTO_INCREMENT PRIMARY KEY,
     mere_id INT NOT NULL,
     pere_id INT NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE reproduction (
     FOREIGN KEY (pere_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE alimentation (
+CREATE TABLE IF NOT EXISTS alimentation (
     id INT AUTO_INCREMENT PRIMARY KEY,
     animal_id INT NOT NULL,
     type_aliment VARCHAR(100) NOT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE alimentation (
     FOREIGN KEY (animal_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE ventes (
+CREATE TABLE IF NOT EXISTS ventes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     animal_id INT NOT NULL,
     acheteur VARCHAR(150) NOT NULL,
@@ -97,7 +97,7 @@ CREATE TABLE ventes (
     FOREIGN KEY (animal_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE alertes (
+CREATE TABLE IF NOT EXISTS alertes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     animal_id INT NULL,
     type ENUM('poids','vaccination','velage','sante','alimentation','autre') NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE alertes (
     FOREIGN KEY (animal_id) REFERENCES animaux(id)
 );
 
-CREATE TABLE historique_statut (
+CREATE TABLE IF NOT EXISTS historique_statut (
     id INT AUTO_INCREMENT PRIMARY KEY,
     animal_id INT NOT NULL,
     ancien_statut VARCHAR(20),
@@ -337,6 +337,125 @@ BEGIN
     INSERT INTO alertes (animal_id, type, message, niveau)
     VALUES (NULL, 'autre',
         CONCAT('Rapport hebdo : ', v_nb_animaux, ' animaux actifs. Consultez le tableau de bord pour les détails.'),
+        'info');
+END$$
+
+DELIMITER ;
+
+DELIMITER ;
+
+-- ─── EXTENSIONS PERSONNALISÉES ────────────────────────────────────
+
+DELIMITER $$
+
+-- 1. Fonction : Coût total d'élevage (Alimentation + Santé)
+CREATE FUNCTION fn_cout_total_elevage(p_animal_id INT)
+RETURNS DECIMAL(12,2)
+READS SQL DATA
+BEGIN
+    DECLARE v_alim DECIMAL(12,2) DEFAULT 0;
+    DECLARE v_sante DECIMAL(12,2) DEFAULT 0;
+
+    SELECT COALESCE(SUM(quantite_kg * cout_unitaire_kg), 0) INTO v_alim
+    FROM alimentation WHERE animal_id = p_animal_id;
+
+    SELECT COALESCE(SUM(cout), 0) INTO v_sante
+    FROM sante WHERE animal_id = p_animal_id;
+
+    RETURN v_alim + v_sante;
+END$$
+
+-- 2. Procédure : Rapport nutritionnel des 30 derniers jours
+CREATE PROCEDURE sp_rapport_nutritionnel(IN p_animal_id INT)
+BEGIN
+    DECLARE v_quantite_totale DECIMAL(10,2);
+    DECLARE v_cout_total DECIMAL(12,2);
+    DECLARE v_aliment_principal VARCHAR(100);
+    DECLARE v_gmq DECIMAL(6,3);
+    DECLARE v_cout_par_kg_gain DECIMAL(12,2) DEFAULT 0;
+
+    -- Calcul consommation 30 derniers jours
+    SELECT SUM(quantite_kg), SUM(quantite_kg * cout_unitaire_kg)
+    INTO v_quantite_totale, v_cout_total
+    FROM alimentation
+    WHERE animal_id = p_animal_id
+      AND date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
+
+    -- Aliment principal
+    SELECT type_aliment INTO v_aliment_principal
+    FROM alimentation
+    WHERE animal_id = p_animal_id
+      AND date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY type_aliment
+    ORDER BY SUM(quantite_kg) DESC
+    LIMIT 1;
+
+    -- GMQ et coût du gain
+    SET v_gmq = fn_gmq(p_animal_id);
+    IF v_gmq > 0 THEN
+        -- Estimation du coût par kg de gain sur la base du coût total mensuel moyen / GMQ
+        SET v_cout_par_kg_gain = (v_cout_total / 30) / v_gmq;
+    END IF;
+
+    -- Insertion alerte info
+    IF v_quantite_totale IS NOT NULL THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (p_animal_id, 'alimentation',
+            CONCAT('Rapport 30j: ', ROUND(v_quantite_totale,1), 'kg (', v_aliment_principal, '). Coût: ', ROUND(v_cout_total,0), ' FCFA.'),
+            'info');
+    END IF;
+
+    -- Retour des données
+    SELECT 
+        v_quantite_totale AS quantite_totale_30j,
+        v_cout_total AS cout_total_30j,
+        v_aliment_principal AS aliment_principal,
+        v_gmq AS gmq_actuel,
+        v_cout_par_kg_gain AS cout_kg_gain;
+END$$
+
+-- 3. Trigger : Alerte si pesée manquante (> 30 jours)
+CREATE TRIGGER trg_alerte_pesee_manquante
+AFTER INSERT ON pesees
+FOR EACH ROW
+BEGIN
+    -- On vérifie TOUS les animaux (selon consigne)
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    SELECT a.id, 'poids',
+           CONCAT('Pesée manquante depuis > 30 jours : ', a.numero_tag),
+           'warning'
+    FROM animaux a
+    WHERE a.statut = 'actif'
+      AND NOT EXISTS (
+          SELECT 1 FROM pesees p 
+          WHERE p.animal_id = a.id 
+            AND p.date_pesee >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      )
+      AND NOT EXISTS (
+          -- Éviter les alertes en double le même jour
+          SELECT 1 FROM alertes al 
+          WHERE al.animal_id = a.id 
+            AND al.type = 'poids' 
+            AND al.message LIKE 'Pesée manquante%'
+            AND DATE(al.date_creation) = CURDATE()
+      );
+END$$
+
+-- 4. Event : Alerte coût mensuel global alimentation
+CREATE EVENT evt_alerte_cout_mensuel
+ON SCHEDULE EVERY 1 MONTH
+STARTS '2026-04-01 00:00:00'
+DO
+BEGIN
+    DECLARE v_total DECIMAL(12,2);
+    
+    SELECT SUM(quantite_kg * cout_unitaire_kg) INTO v_total
+    FROM alimentation
+    WHERE date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH);
+
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    VALUES (NULL, 'autre',
+        CONCAT('Bilan mensuel alimentation : ', COALESCE(ROUND(v_total,0), 0), ' FCFA.'),
         'info');
 END$$
 

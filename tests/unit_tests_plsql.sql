@@ -267,6 +267,122 @@ WHERE type = 'autre'
   AND DATE(date_creation) = CURDATE();
 
 -- ============================================================
+--  BLOC 8 : Test de fn_cout_total_elevage
+-- ============================================================
+
+SELECT '=== BLOC 8 : fn_cout_total_elevage ===' AS test;
+
+-- Insertion données temporaires pour test
+INSERT INTO alimentation (animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
+VALUES (1, 'Test Alim', 10.0, CURDATE(), 200.0); -- Coût: 2000
+
+INSERT INTO sante (animal_id, type, description, date_acte, veterinaire, medicament, cout)
+VALUES (1, 'traitement', 'Test Sante', CURDATE(), 'Dr Test', 'Medoc Test', 1500.0); -- Coût: 1500
+
+-- Vérification (15000 vaccin + 2000 alim + 1500 sante + 1200 foin initial = 19700)
+-- Note: TAG-001 a déjà 15000 (vaccin) + 1200 (foin: 8kg * 150) = 16200
+-- Total attendu : 16200 + 2000 + 1500 = 19700
+
+SELECT 
+    a.numero_tag,
+    fn_cout_total_elevage(a.id) AS cout_total_calcule,
+    IF(fn_cout_total_elevage(a.id) >= 19700, 'PASS', 'FAIL') AS resultat_test
+FROM animaux a WHERE a.id = 1;
+
+-- Nettoyage Bloc 8
+DELETE FROM alimentation WHERE type_aliment = 'Test Alim';
+DELETE FROM sante WHERE description = 'Test Sante';
+
+-- ============================================================
+--  BLOC 9 : Test sp_rapport_nutritionnel
+-- ============================================================
+
+SELECT '=== BLOC 9 : sp_rapport_nutritionnel ===' AS test;
+
+-- Préparation données 30j
+INSERT INTO alimentation (animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
+VALUES (2, 'Mais', 50.0, DATE_SUB(CURDATE(), INTERVAL 5 DAY), 300.0);
+
+-- Exécution
+CALL sp_rapport_nutritionnel(2);
+
+-- Vérification alerte générée
+SELECT 
+    message,
+    IF(message LIKE '%Mais%', 'PASS', 'FAIL') AS test_contenu_alerte
+FROM alertes 
+WHERE animal_id = 2 AND type = 'alimentation'
+ORDER BY date_creation DESC LIMIT 1;
+
+-- Nettoyage Bloc 9
+DELETE FROM alimentation WHERE type_aliment = 'Mais';
+DELETE FROM alertes WHERE animal_id = 2 AND type = 'alimentation';
+
+-- ============================================================
+--  BLOC 10 : Test trg_alerte_pesee_manquante
+-- ============================================================
+
+SELECT '=== BLOC 10 : trg_alerte_pesee_manquante ===' AS test;
+
+-- On crée un animal actif sans pesée
+INSERT INTO animaux (numero_tag, nom, race_id, sexe, date_naissance, statut)
+VALUES ('TAG-TEST-TRG', 'Test Trigger', 1, 'M', '2023-01-01', 'actif');
+
+-- L'insertion d'une pesée pour N'IMPORTE QUEL animal déclenche le check global
+INSERT INTO pesees (animal_id, poids_kg, date_pesee, agent)
+VALUES (1, 320.0, CURDATE(), 'TriggerTest');
+
+-- Vérifier si l'alerte a été créée pour TAG-TEST-TRG
+SELECT 
+    message,
+    IF(message LIKE '%TAG-TEST-TRG%', 'PASS', 'FAIL') AS test_trigger_alerte
+FROM alertes 
+WHERE type = 'poids' AND message LIKE '%Pesée manquante%'
+AND animal_id = (SELECT id FROM animaux WHERE numero_tag = 'TAG-TEST-TRG');
+
+-- Nettoyage Bloc 10
+DELETE FROM pesees WHERE agent = 'TriggerTest';
+DELETE FROM alertes WHERE message LIKE '%TAG-TEST-TRG%';
+DELETE FROM animaux WHERE numero_tag = 'TAG-TEST-TRG';
+
+-- ============================================================
+--  BLOC 11 : Test evt_alerte_cout_mensuel (Logique)
+-- ============================================================
+
+SELECT '=== BLOC 11 : evt_alerte_cout_mensuel ===' AS test;
+
+-- Simulation de la logique de l'event
+DROP PROCEDURE IF EXISTS test_bloc11;
+DELIMITER $$
+CREATE PROCEDURE test_bloc11()
+BEGIN
+    DECLARE v_total DECIMAL(12,2);
+    SELECT SUM(quantite_kg * cout_unitaire_kg) INTO v_total
+    FROM alimentation
+    WHERE date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH);
+
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    VALUES (NULL, 'autre',
+        CONCAT('Bilan mensuel alimentation : ', COALESCE(ROUND(v_total,0), 0), ' FCFA.'),
+        'info');
+END$$
+DELIMITER ;
+
+CALL test_bloc11();
+
+-- Vérification
+SELECT 
+    message,
+    IF(message LIKE 'Bilan mensuel alimentation%', 'PASS', 'FAIL') AS test_event_alerte
+FROM alertes 
+WHERE type = 'autre' AND animal_id IS NULL
+ORDER BY date_creation DESC LIMIT 1;
+
+-- Nettoyage Bloc 11
+DROP PROCEDURE IF EXISTS test_bloc11;
+DELETE FROM alertes WHERE type = 'autre' AND message LIKE 'Bilan mensuel alimentation%';
+
+-- ============================================================
 --  RÉSUMÉ FINAL
 -- ============================================================
 
