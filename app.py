@@ -43,6 +43,10 @@ Fonctions :
 - fn_age_en_mois(animal_id) -> INT
 - fn_gmq(animal_id) -> DECIMAL (gain moyen quotidien en kg/jour)
 - fn_cout_total_elevage(animal_id) -> DECIMAL (somme cumulée alimentation + santé)
+
+Procédures disponibles :
+- sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
+- sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa, poids_vente_kg, date_vente)
 """
 
 def get_system_prompt():
