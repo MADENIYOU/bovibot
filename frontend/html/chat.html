@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoviBot — Chat LLM</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">BoviBot</span>
+      <div class="api-status">
+        <span class="api-dot" id="api-status-dot"></span>
+        <span class="api-text" id="api-status-text">Connexion...</span>
+      </div>
+    </div>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link nav-inactive">Dashboard</a>
+      <a href="chat.html" class="nav-link nav-active">Chat LLM</a>
+      <a href="troupeau.html" class="nav-link nav-inactive">Troupeau</a>
+      <a href="sante.html" class="nav-link nav-inactive">Santé</a>
+    </nav>
+    <div class="header-right">
+      <button class="icon-btn"><span class="material-symbols-outlined">sensors</span></button>
+      <button class="icon-btn"><span class="material-symbols-outlined">settings</span></button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h2>BoviBot</h2>
+      <p>Digital Agrarian Systems</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="chat.html" class="nav-link sidebar-link sidebar-active">
+        <span class="material-symbols-outlined">smart_toy</span>
+        <span>Chat LLM</span>
+      </a>
+      <a href="troupeau.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">pets</span>
+        <span>Troupeau</span>
+      </a>
+      <a href="sante.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">monitor_heart</span>
+        <span>Santé</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENU PRINCIPAL -->
+  <main class="main-content">
+
+    <div class="page-header">
+      <h1 class="page-title">Assistant BoviBot</h1>
+      <p class="page-subtitle">Posez vos questions en langage naturel</p>
+    </div>
+
+    <div class="chat-layout">
+
+      <!-- Zone de chat -->
+      <div class="card chat-card">
+
+        <!-- Suggestions -->
+        <div class="suggestions">
+          <button class="suggestion-btn" onclick="ask('Liste tous les animaux actifs avec leur âge et GMQ')">
+            <span class="material-symbols-outlined">pets</span> Troupeau complet
+          </button>
+          <button class="suggestion-btn" onclick="ask('Quels animaux ont un GMQ inférieur à 0.3 kg/jour ?')">
+            <span class="material-symbols-outlined">trending_down</span> GMQ faibles
+          </button>
+          <button class="suggestion-btn" onclick="ask('Quelles femelles sont en gestation et quand vêlent-elles ?')">
+            <span class="material-symbols-outlined">child_care</span> Gestations
+          </button>
+          <button class="suggestion-btn" onclick="ask('Quels animaux n\'ont pas été vaccinés depuis 6 mois ?')">
+            <span class="material-symbols-outlined">vaccines</span> Vaccinations
+          </button>
+          <button class="suggestion-btn" onclick="ask('Enregistre une pesée de 325 kg pour TAG-001 aujourd\'hui')">
+            <span class="material-symbols-outlined">scale</span> Saisir pesée
+          </button>
+          <button class="suggestion-btn" onclick="ask('Quel est le coût total d\'alimentation ce mois-ci ?')">
+            <span class="material-symbols-outlined">payments</span> Coût alim.
+          </button>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-box" id="chat-box">
+          <div class="msg bot">
+            <div class="msg-avatar">
+              <span class="material-symbols-outlined">smart_toy</span>
+            </div>
+            <div class="bubble">
+              🐄 Bonjour ! Je suis BoviBot.<br>
+              Posez vos questions sur votre troupeau ou demandez-moi d'enregistrer une pesée, une vente...
+            </div>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div class="chat-input">
+          <input
+            type="text"
+            id="user-input"
+            placeholder="Ex: Quel animal a le meilleur GMQ ce mois ?"
+            onkeypress="if(event.key==='Enter') sendMessage()"
+          >
+          <button onclick="sendMessage()" class="btn-send">
+            <span class="material-symbols-outlined">send</span>
+            Envoyer
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Zone résultats -->
+      <div id="results-section" class="card results-card" style="display:none">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined">table_view</span>
+          Résultats
+        </h2>
+        <div class="results" id="results-table"></div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="../js/nav.js"></script>
+  <script src="../js/chat.js"></script>
+</body>
+</html>
