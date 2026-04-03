@@ -56,7 +56,7 @@ async function chargerAlertes() {
     if (!alertes.length) {
       container.innerHTML = `
         <p style="color:var(--color-success);font-size:.85rem;padding:.5rem 0">
-          ✅ Aucune alerte active
+          Aucune alerte active
         </p>`;
       return;
     }
@@ -133,7 +133,7 @@ async function chargerGestations() {
         <div style="font-size:.78rem;color:#64748b">
           🐂 Père : ${escapeHtml(g.pere_tag)}
           &nbsp;|&nbsp;
-          📅 Vêlage prévu : <strong>${formatDate(g.date_velage_prevue)}</strong>
+          Vêlage prévu : <strong>${formatDate(g.date_velage_prevue)}</strong>
           &nbsp;|&nbsp;
           Saillie : ${formatDate(g.date_saillie)}
         </div>

@@ -176,18 +176,18 @@ async function confirmerAction() {
 
     addMessage('bot', `
       <div style="color:var(--color-success);font-weight:700;font-size:1rem;margin-bottom:.3rem">
-        ✅ Action effectuée avec succès !
+        Action effectuée avec succès !
       </div>
       <div>${escapeHtml(data.answer || '')}</div>
     `);
 
     // Mise à jour historique
-    chatHistory.push({ role: 'assistant', content: '✅ Action effectuée.' });
+    chatHistory.push({ role: 'assistant', content: 'Action effectuée.' });
     if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
 
   } catch (e) {
     removeSpinner();
-    addMessage('bot', '❌ Erreur réseau lors de l\'exécution de l\'action.');
+    addMessage('bot', 'Erreur réseau lors de l\'exécution de l\'action.');
   }
   isBusy = false;
 }
@@ -196,7 +196,7 @@ async function confirmerAction() {
 function annulerAction() {
   pendingAction = null;
   isBusy = false;
-  addMessage('bot', '↩️ Action annulée. Que puis-je faire d\'autre ?');
+  addMessage('bot', 'Action annulée. Que puis-je faire d\'autre ?');
   document.querySelectorAll('.confirm-btns button').forEach(b => b.disabled = true);
 }
 
@@ -268,7 +268,7 @@ async function sendMessage() {
 
     } else if (type === 'action_done') {
       addMessage('bot', `
-        <div style="color:var(--color-success);font-weight:700">✅ Action effectuée !</div>
+        <div style="color:var(--color-success);font-weight:700">Action effectuée !</div>
         <div>${escapeHtml(data.answer || '')}</div>
       `);
       chatHistory.push({ role: 'assistant', content: data.answer || '' });
@@ -283,7 +283,7 @@ async function sendMessage() {
 
   } catch (e) {
     removeSpinner();
-    addMessage('bot', '❌ Impossible de joindre le serveur BoviBot. Vérifiez que l\'API est démarrée.');
+    addMessage('bot', 'Impossible de joindre le serveur BoviBot. Vérifiez que l\'API est démarrée.');
   }
 
   isBusy = false;

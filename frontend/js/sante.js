@@ -21,10 +21,10 @@ function formatFCFA(n) {
 
 function typeBadge(type) {
   const map = {
-    vaccination: { cls: 'badge-success', label: '💉 Vaccination' },
-    traitement:  { cls: 'badge-warning', label: '💊 Traitement' },
-    examen:      { cls: 'badge-info',    label: '🔬 Examen' },
-    chirurgie:   { cls: 'badge-critical',label: '🔪 Chirurgie' },
+    vaccination: { cls: 'badge-success', label: 'Vaccination' },
+    traitement:  { cls: 'badge-warning', label: 'Traitement' },
+    examen:      { cls: 'badge-info',    label: 'Examen' },
+    chirurgie:   { cls: 'badge-critical',label: 'Chirurgie' },
   };
   const t = map[type] || { cls: 'badge-info', label: escapeHtml(type) };
   return `<span class="badge ${t.cls}">${t.label}</span>`;
