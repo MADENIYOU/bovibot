@@ -3,7 +3,7 @@
 //  Navigation partagée : header, liens actifs, ping API
 // ============================================================
 
-const API = '';
+const API = 'http://localhost:8002';
 
 // Ping /health toutes les 30s → indicateur vert/rouge
 function pingAPI() {
