@@ -288,6 +288,100 @@ def dashboard():
         stats[k] = result[0]["n"] if result else 0
     return stats
 
+@app.get("/api/stats/poids-mensuel")
+def get_poids_mensuel():
+    # Calcule le poids moyen par mois sur les 6 derniers mois
+    return execute_query("""
+        SELECT DATE_FORMAT(date_pesee, '%Y-%m') as tri, 
+               DATE_FORMAT(date_pesee, '%b') as mois, 
+               ROUND(AVG(poids_kg), 1) as poids
+        FROM pesees
+        WHERE date_pesee >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY tri, mois
+        ORDER BY tri ASC
+    """)
+
+@app.get("/api/stats/sante-repartition")
+def get_sante_repartition():
+    # Compte réel des actes par type
+    return execute_query("""
+        SELECT type, COUNT(*) as n 
+        FROM sante 
+        GROUP BY type
+    """)
+
+# ── Endpoints Rapports ──────────────────────────────────────────
+@app.get("/api/settings")
+def get_settings():
+    # Simulation de stockage de paramètres (idéalement en base de données)
+    return {
+        "farm_name": "Ferme Pilote BoviBot",
+        "supervisor": "Admin Intel",
+        "llm_model": LLM_MODEL,
+        "alert_threshold_gmq": 0.3,
+        "db_status": "connected"
+    }
+
+@app.post("/api/settings")
+async def update_settings(settings: dict):
+    # Logique de mise à jour (ici on simule le succès)
+    return {"status": "success", "message": "Paramètres mis à jour"}
+
+@app.get("/api/reports/finance")
+def get_report_finance():
+    # Ventes mensuelles sur 12 mois
+    return execute_query("""
+        SELECT DATE_FORMAT(date_vente, '%b %y') as mois, SUM(prix_fcfa) as total 
+        FROM ventes 
+        WHERE date_vente >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY mois ORDER BY MIN(date_vente) ASC
+    """)
+
+@app.get("/api/reports/races-performance")
+def get_report_races():
+    # GMQ moyen par race
+    return execute_query("""
+        SELECT r.nom as race, ROUND(AVG(fn_gmq(a.id)), 3) as gmq_moyen 
+        FROM animaux a 
+        JOIN races r ON a.race_id = r.id 
+        WHERE a.statut = 'actif' 
+        GROUP BY r.nom
+        HAVING gmq_moyen IS NOT NULL
+        ORDER BY gmq_moyen DESC
+    """)
+
+@app.get("/api/reports/demography")
+def get_report_demo():
+    # Répartition par sexe
+    return execute_query("""
+        SELECT sexe, COUNT(*) as count 
+        FROM animaux 
+        WHERE statut = 'actif' 
+        GROUP BY sexe
+    """)
+
+@app.get("/api/reports/profitability")
+def get_report_profitability():
+    # Prix de vente moyen par race
+    return execute_query("""
+        SELECT r.nom as race, ROUND(AVG(v.prix_fcfa), 0) as prix_moyen
+        FROM ventes v
+        JOIN animaux a ON v.animal_id = a.id
+        JOIN races r ON a.race_id = r.id
+        GROUP BY r.nom
+        ORDER BY prix_moyen DESC
+    """)
+
+@app.get("/api/reports/health-costs")
+def get_report_health_costs():
+    # Dépenses santé par mois
+    return execute_query("""
+        SELECT DATE_FORMAT(date_acte, '%b %y') as mois, SUM(cout) as total
+        FROM sante
+        WHERE date_acte >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY mois ORDER BY MIN(date_acte) ASC
+    """)
+
 @app.get("/api/animaux")
 def get_animaux():
     return execute_query("""
@@ -298,6 +392,33 @@ def get_animaux():
         WHERE a.statut = 'actif'
         ORDER BY a.numero_tag
     """)
+
+class AnimalCreate(BaseModel):
+    numero_tag: str
+    nom: str = None
+    race_id: int
+    sexe: str
+    date_naissance: str
+
+@app.post("/api/animaux")
+def create_animal(animal: AnimalCreate):
+    sql = "INSERT INTO animaux (numero_tag, nom, race_id, sexe, date_naissance, statut) VALUES (%s, %s, %s, %s, %s, 'actif')"
+    params = (animal.numero_tag, animal.nom, animal.race_id, animal.sexe, animal.date_naissance)
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, params)
+        conn.commit()
+        return {"status": "success"}
+    except mysql.connector.Error as err:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=err.msg)
+    finally:
+        cursor.close(); conn.close()
+
+@app.get("/api/races")
+def get_races():
+    return execute_query("SELECT id, nom FROM races ORDER BY nom")
 
 @app.get("/api/animaux/{animal_id}/cout-total")
 def get_animal_cout_total(animal_id: int):

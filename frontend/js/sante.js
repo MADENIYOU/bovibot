@@ -1,12 +1,13 @@
 
-let tousActes = [];   // cache brut API /api/sante
+let tousActes = [];
+let filtreActuel = 'tous';
+let currentPage = 1;
+const itemsPerPage = 8;
 
-// ── Formatage ─────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 function escapeHtml(str) {
   if (str === null || str === undefined) return '—';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function formatDate(d) {
@@ -14,167 +15,191 @@ function formatDate(d) {
   try { return new Date(d).toLocaleDateString('fr-FR'); } catch { return d; }
 }
 
-function formatFCFA(n) {
-  if (!n || n == 0) return '<span style="color:#94a3b8">0 FCFA</span>';
-  return Number(n).toLocaleString('fr-FR') + ' FCFA';
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('custom-toast');
+  const msgEl = document.getElementById('toast-message');
+  if (!toast || !msgEl) return;
+  msgEl.textContent = message;
+  toast.classList.add('active');
+  setTimeout(() => toast.classList.remove('active'), 4000);
 }
 
-function typeBadge(type) {
-  const map = {
-    vaccination: { cls: 'badge-success', label: 'Vaccination' },
-    traitement:  { cls: 'badge-warning', label: 'Traitement' },
-    examen:      { cls: 'badge-info',    label: 'Examen' },
-    chirurgie:   { cls: 'badge-critical',label: 'Chirurgie' },
-  };
-  const t = map[type] || { cls: 'badge-info', label: escapeHtml(type) };
-  return `<span class="badge ${t.cls}">${t.label}</span>`;
-}
-
-function rdvLabel(date) {
-  if (!date) return '—';
-  const today  = new Date(); today.setHours(0,0,0,0);
-  const rdvDate = new Date(date); rdvDate.setHours(0,0,0,0);
-  const diff = Math.floor((rdvDate - today) / 86400000);
-
-  if (diff < 0)
-    return `<span style="color:var(--color-critical);font-weight:700">🔴 ${formatDate(date)} (en retard)</span>`;
-  if (diff === 0)
-    return `<span style="color:var(--color-warning);font-weight:700">🟡 Aujourd'hui</span>`;
-  if (diff <= 7)
-    return `<span style="color:var(--color-warning);font-weight:700">🟡 ${formatDate(date)} (dans ${diff}j)</span>`;
-  return `<span style="color:var(--color-success)">🟢 ${formatDate(date)}</span>`;
-}
-
-// ── Chargement alertes santé ──────────────────────────────────
-async function chargerAlertesSante() {
-  const container = document.getElementById('alertes-sante-list');
-  if (!container) return;
-
+// ── Chargement Initial ────────────────────────────────────────
+async function chargerSante() {
   try {
-    const res = await fetch(`${API}/api/alertes`);
-    if (!res.ok) throw new Error();
-    const alertes = await res.json();
+    const [resActes, resAlertes, resStats] = await Promise.all([
+      fetch('/api/sante'),
+      fetch('/api/alertes'),
+      fetch('/api/dashboard')
+    ]);
 
-    // Filtrer seulement les alertes de type santé/vaccination
-    const santeAlertes = alertes.filter(a =>
-      ['vaccination', 'sante', 'poids'].includes(a.type)
-    );
+    tousActes = await resActes.json();
+    const alertes = await resAlertes.json();
+    const stats = await resStats.json();
 
-    if (!santeAlertes.length) {
-      container.innerHTML = `
-        <p style="color:var(--color-success);font-size:.85rem;padding:.5rem 0">
-          ✅ Aucune alerte sanitaire active
-        </p>`;
-      return;
-    }
-
-    container.innerHTML = santeAlertes.map(a => `
-      <div class="alerte-item alerte-${a.niveau}" id="alerte-sante-${a.id}">
-        <div style="flex:1">
-          <div style="font-size:.85rem">
-            <strong>${a.numero_tag ? '[' + escapeHtml(a.numero_tag) + ']' : '🌐'}</strong>
-            ${escapeHtml(a.message)}
-          </div>
-          <div style="font-size:.72rem;color:#94a3b8;margin-top:.12rem">
-            ${formatDate(a.date_creation)} — Niveau :
-            <span style="font-weight:700">${escapeHtml(a.niveau).toUpperCase()}</span>
-          </div>
-        </div>
-        <button
-          title="Marquer comme traitée"
-          onclick="traiterAlerteSante(${a.id})"
-          style="color:var(--color-success);font-size:1.1rem;flex-shrink:0"
-        >✓</button>
-      </div>
-    `).join('');
-
-  } catch (e) {
-    container.innerHTML = '<p class="loading-text">Impossible de charger les alertes.</p>';
-  }
-}
-
-async function traiterAlerteSante(alertId) {
-  try {
-    await fetch(`${API}/api/alertes/${alertId}/traiter`, { method: 'POST' });
-    const el = document.getElementById(`alerte-sante-${alertId}`);
-    if (el) {
-      el.style.transition = 'opacity .3s';
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 300);
-    }
-  } catch (e) {
-    alert('Erreur lors du traitement de l\'alerte.');
-  }
-}
-
-// ── Chargement actes vétérinaires ────────────────────────────
-async function chargerActes() {
-  const tbody = document.getElementById('sante-body');
-  const count = document.getElementById('count-actes');
-
-  try {
-    const res = await fetch(`${API}/api/sante`);
-    if (!res.ok) throw new Error();
-    tousActes = await res.json();
     afficherActes(tousActes);
+    afficherAlertes(alertes);
+    afficherStats(stats);
+
   } catch (e) {
-    if (tbody)
-      tbody.innerHTML = '<tr><td colspan="8" class="loading-text">❌ Impossible de charger les actes.</td></tr>';
+    console.error(e);
+    const body = document.getElementById('acts-body');
+    if (body) body.innerHTML = '<tr><td colspan="6" class="p-12 text-center text-red-500 font-bold">Erreur de chargement.</td></tr>';
   }
 }
 
-// ── Afficher les actes dans le tableau ────────────────────────
+// ── Affichage du Registre avec Pagination ─────────────────────
 function afficherActes(actes) {
-  const tbody = document.getElementById('sante-body');
-  const count = document.getElementById('count-actes');
+  const tbody = document.getElementById('acts-body');
+  const countEl = document.getElementById('count-acts');
+  if (!tbody) return;
 
-  if (count) count.textContent = actes.length;
+  const filtered = filtreActuel === 'tous' 
+    ? actes 
+    : actes.filter(a => a.type === filtreActuel);
 
-  if (!actes.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Aucun acte ne correspond au filtre.</td></tr>';
+  const total = filtered.length;
+  if (countEl) countEl.textContent = total;
+
+  if (!total) {
+    tbody.innerHTML = '<tr><td colspan="6" class="p-12 text-center text-slate-400 italic">Aucun acte enregistré.</td></tr>';
+    document.getElementById('pagination-range').textContent = '0-0';
+    document.getElementById('pagination-controls').innerHTML = '';
     return;
   }
 
-  tbody.innerHTML = actes.map(a => `
-    <tr>
-      <td>
-        <strong>${escapeHtml(a.numero_tag)}</strong>
-        ${a.animal_nom ? '<br><span style="font-size:.78rem;color:#64748b">' + escapeHtml(a.animal_nom) + '</span>' : ''}
-      </td>
-      <td>${typeBadge(a.type)}</td>
-      <td style="font-size:.82rem;max-width:200px;white-space:normal">
-        ${escapeHtml(a.description)}
-      </td>
-      <td>${formatDate(a.date_acte)}</td>
-      <td>${escapeHtml(a.veterinaire)}</td>
-      <td>
-        ${a.medicament
-          ? `<span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:2px 6px;font-size:.78rem">${escapeHtml(a.medicament)}</span>`
-          : '<span style="color:#94a3b8;font-size:.8rem">—</span>'}
-      </td>
-      <td style="text-align:right">${formatFCFA(a.cout)}</td>
-      <td>${rdvLabel(a.prochain_rdv)}</td>
-    </tr>
+  const totalPages = Math.ceil(total / itemsPerPage);
+  if (currentPage > totalPages) currentPage = totalPages || 1;
+
+  const start = (currentPage - 1) * itemsPerPage;
+  const end = Math.min(start + itemsPerPage, total);
+  const paginatedItems = filtered.slice(start, end);
+
+  document.getElementById('pagination-range').textContent = `${start + 1}-${end}`;
+
+  tbody.innerHTML = paginatedItems.map(a => {
+    const isOverdue = a.prochain_rdv && new Date(a.prochain_rdv) < new Date();
+    const badgeColor = a.type === 'Vaccination' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary';
+    
+    return `
+      <tr class="bg-slate-50/50 transition-all hover:translate-x-1 group">
+        <td class="px-4 py-5 rounded-l-2xl border-y border-l border-outline/50">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-white border border-outline flex items-center justify-center text-primary-dark font-black text-xs shadow-sm">
+              ${a.numero_tag.slice(-2)}
+            </div>
+            <span class="font-black text-primary-dark">${escapeHtml(a.numero_tag)}</span>
+          </div>
+        </td>
+        <td class="px-4 py-5 border-y border-outline/50">
+          <span class="${badgeColor} px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">${escapeHtml(a.type)}</span>
+        </td>
+        <td class="px-4 py-5 border-y border-outline/50 font-bold text-slate-500">${formatDate(a.date_acte)}</td>
+        <td class="px-4 py-5 border-y border-outline/50 font-medium text-slate-600">${escapeHtml(a.veterinaire)}</td>
+        <td class="px-4 py-5 border-y border-outline/50">
+          <span class="${isOverdue ? 'text-red-500 font-black' : 'text-slate-400 font-bold'}">${formatDate(a.prochain_rdv)}</span>
+        </td>
+        <td class="px-4 py-5 rounded-r-2xl border-y border-r border-outline/50 text-right">
+          <button class="material-symbols-outlined text-slate-300 hover:text-primary transition-all">more_vert</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  renderPagination(totalPages);
+}
+
+function renderPagination(total) {
+  const container = document.getElementById('pagination-controls');
+  if (total <= 1) { container.innerHTML = ''; return; }
+  
+  let html = `<button onclick="changePage(${currentPage-1})" ${currentPage===1?'disabled':''} class="p-2 rounded-lg hover:bg-white disabled:opacity-30 transition-all"><span class="material-symbols-outlined text-lg">chevron_left</span></button>`;
+  
+  for(let i=1; i<=total; i++) {
+    if(i === 1 || i === total || (i >= currentPage - 1 && i <= currentPage + 1)) {
+      html += `<button onclick="changePage(${i})" class="px-3 py-1 rounded-lg ${i===currentPage?'bg-primary text-white shadow-md':'hover:bg-white text-slate-400'} font-bold transition-all">${i}</button>`;
+    } else if (i === currentPage - 2 || i === currentPage + 2) {
+      html += `<span class="px-2 text-slate-300">...</span>`;
+    }
+  }
+
+  html += `<button onclick="changePage(${currentPage+1})" ${currentPage===total?'disabled':''} class="p-2 rounded-lg hover:bg-white disabled:opacity-30 transition-all"><span class="material-symbols-outlined text-lg">chevron_right</span></button>`;
+  container.innerHTML = html;
+}
+
+window.changePage = function(p) {
+  currentPage = p;
+  afficherActes(tousActes);
+}
+
+// ── Affichage des Alertes ─────────────────────────────────────
+function afficherAlertes(alertes) {
+  const container = document.getElementById('health-alerts-list');
+  if (!container) return;
+
+  const healthAlerts = alertes.filter(a => a.type === 'sante' || a.type === 'vaccination');
+
+  if (!healthAlerts.length) {
+    container.innerHTML = '<div class="p-8 text-center text-red-300 italic text-sm">Aucune alerte urgente.</div>';
+    return;
+  }
+
+  container.innerHTML = healthAlerts.map(a => `
+    <div class="bg-white rounded-2xl p-5 border border-red-100 shadow-sm transition-transform hover:scale-[1.02] cursor-pointer">
+      <div class="flex justify-between items-start mb-3">
+        <span class="font-black text-primary-dark text-sm uppercase tracking-tighter">${escapeHtml(a.numero_tag)}</span>
+        <span class="text-[10px] font-black ${a.niveau === 'critical' ? 'text-red-600' : 'text-amber-600'} uppercase tracking-widest">${a.type}</span>
+      </div>
+      <p class="text-xs text-slate-500 font-medium leading-relaxed mb-4">${escapeHtml(a.message)}</p>
+      <button onclick="traiterAlerte(${a.id})" class="w-full bg-red-600 text-white py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all active:scale-95 shadow-lg shadow-red-200">
+        MARQUER COMME TRAITÉ
+      </button>
+    </div>
   `).join('');
 }
 
-// ── Filtrage par type d'acte ──────────────────────────────────
-function filtrerActes() {
-  const type = document.getElementById('filter-type')?.value || 'tous';
-  if (type === 'tous') {
-    afficherActes(tousActes);
-  } else {
-    afficherActes(tousActes.filter(a => a.type === type));
-  }
+async function traiterAlerte(id) {
+  try {
+    const res = await fetch(`/api/alertes/${id}/traiter`, { method: 'POST' });
+    if (res.ok) {
+      showToast("Alerte traitée avec succès");
+      chargerSante();
+    }
+  } catch (e) { showToast("Erreur lors du traitement", "error"); }
 }
 
-// ── Initialisation ────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  chargerAlertesSante();
-  chargerActes();
-  // Rafraîchissement toutes les 60s
-  setInterval(() => {
-    chargerAlertesSante();
-    chargerActes();
-  }, 60_000);
-});
+// ── Affichage des Stats ───────────────────────────────────────
+function afficherStats(stats) {
+  document.getElementById('stat-vaccins').textContent = stats.vaccines_annee || 0;
+  document.getElementById('stat-soins').textContent = stats.rdv_a_venir || 0;
+  // Calcul budget santé (Somme des coûts des 30 derniers jours)
+  const budget = tousActes
+    .filter(a => new Date(a.date_acte) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+    .reduce((acc, a) => acc + parseFloat(a.cout || 0), 0);
+  document.getElementById('stat-depenses').textContent = Number(budget).toLocaleString('fr-FR') + ' F';
+}
+
+// ── Filtrage ──────────────────────────────────────────────────
+window.filterActs = function(type) {
+  filtreActuel = type;
+  currentPage = 1; // On revient à la page 1 lors d'un filtrage
+  // UI Update
+  ['all', 'vaccin', 'trait'].forEach(id => {
+    const btn = document.getElementById(`btn-filter-${id}`);
+    if (btn) {
+      btn.classList.remove('bg-white', 'shadow-sm', 'text-primary');
+      btn.classList.add('text-slate-400');
+    }
+  });
+  const map = { 'tous': 'all', 'Vaccination': 'vaccin', 'Traitement': 'trait' };
+  const activeBtn = document.getElementById(`btn-filter-${map[type]}`);
+  if (activeBtn) {
+    activeBtn.classList.add('bg-white', 'shadow-sm', 'text-primary');
+    activeBtn.classList.remove('text-slate-400');
+  }
+  
+  afficherActes(tousActes);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', chargerSante);

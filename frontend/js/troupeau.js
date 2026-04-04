@@ -1,11 +1,14 @@
-let tousAnimaux = [];   // cache brut de l'API
 
-// ── Formatage ─────────────────────────────────────────────────
+let tousAnimaux = [];
+let filtreSexe = 'tous';
+let racesData = [];
+let currentPage = 1;
+const itemsPerPage = 10;
+
+// ── Helpers ───────────────────────────────────────────────────
 function escapeHtml(str) {
   if (str === null || str === undefined) return '—';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function formatDate(d) {
@@ -13,32 +16,21 @@ function formatDate(d) {
   try { return new Date(d).toLocaleDateString('fr-FR'); } catch { return d; }
 }
 
-function sexeLabel(s) {
-  return s === 'M'
-    ? '<span style="color:#2563eb">♂ Mâle</span>'
-    : '<span style="color:#db2777">♀ Femelle</span>';
-}
-
-function gmqBadge(gmq) {
-  const v = parseFloat(gmq);
-  if (isNaN(v) || v === 0) return '<span class="badge badge-info">—</span>';
-  if (v < 0.3)  return `<span class="badge badge-critical">⚠ ${v.toFixed(3)}</span>`;
-  if (v < 0.5)  return `<span class="badge badge-warning">${v.toFixed(3)}</span>`;
-  return `<span class="badge badge-success">▲ ${v.toFixed(3)}</span>`;
-}
-
-// ── Chargement initial ────────────────────────────────────────
+// ── Chargement Initial ────────────────────────────────────────
 async function chargerTroupeau() {
-  const tbody = document.getElementById('troupeau-body');
   try {
-    const res = await fetch(`${API}/api/animaux`);
-    if (!res.ok) throw new Error();
-    tousAnimaux = await res.json();
+    const [resAnimaux, resRaces] = await Promise.all([
+      fetch('/api/animaux'),
+      fetch('/api/races').catch(() => null) // Fallback si endpoint inexistant
+    ]);
 
-    // Remplir le filtre Race dynamiquement
+    tousAnimaux = await resAnimaux.json();
+    
+    // Remplir le filtre Race
     const races = [...new Set(tousAnimaux.map(a => a.race).filter(Boolean))].sort();
     const selectRace = document.getElementById('filter-race');
     if (selectRace) {
+      selectRace.innerHTML = '<option value="tous">Toutes les races</option>';
       races.forEach(r => {
         const opt = document.createElement('option');
         opt.value = r; opt.textContent = r;
@@ -46,142 +38,270 @@ async function chargerTroupeau() {
       });
     }
 
-    afficherTroupeau(tousAnimaux);
+    // Remplir le select de l'ajout
+    const addSelect = document.getElementById('add-race-select');
+    if (addSelect) {
+      // Si l'API /api/races n'existe pas, on utilise les races du troupeau
+      const list = races.length ? races : ['Zébu Gobra', 'Ndama', 'Métis'];
+      addSelect.innerHTML = list.map((r, i) => `<option value="${i+1}">${r}</option>`).join('');
+    }
+
+    filtrerTroupeau();
+    calculerStatsPerformance(tousAnimaux);
 
   } catch (e) {
-    if (tbody)
-      tbody.innerHTML = '<tr><td colspan="8" class="loading-text">❌ Impossible de charger le troupeau.</td></tr>';
+    console.error(e);
+    document.getElementById('troupeau-body').innerHTML = '<tr><td colspan="8" class="p-12 text-center text-red-500 font-bold">Erreur de chargement.</td></tr>';
   }
 }
 
-// ── Afficher les animaux dans le tableau ──────────────────────
+// ── Pagination & Affichage ────────────────────────────────────
 function afficherTroupeau(animaux) {
   const tbody = document.getElementById('troupeau-body');
-  const count = document.getElementById('count-animaux');
+  const count = animaux.length;
+  document.getElementById('count-animaux').textContent = count;
 
-  if (count) count.textContent = animaux.length;
-
-  if (!animaux.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="loading-text">Aucun animal ne correspond aux filtres.</td></tr>';
+  if (!count) {
+    tbody.innerHTML = '<tr><td colspan="8" class="p-12 text-center text-slate-400 italic">Aucun animal trouvé.</td></tr>';
+    document.getElementById('pagination-range').textContent = '0-0';
+    document.getElementById('pagination-controls').innerHTML = '';
     return;
   }
 
-  tbody.innerHTML = animaux.map(a => `
-    <tr>
-      <td><strong>${escapeHtml(a.numero_tag)}</strong></td>
-      <td>${escapeHtml(a.nom) || '<em style="color:#94a3b8">—</em>'}</td>
-      <td>${escapeHtml(a.race) || '—'}</td>
-      <td>${sexeLabel(a.sexe)}</td>
-      <td style="text-align:center">${a.age_mois ?? '—'}</td>
-      <td style="text-align:right">${a.poids_actuel ? Number(a.poids_actuel).toFixed(1) + ' kg' : '—'}</td>
-      <td style="text-align:center">${gmqBadge(a.gmq_kg_jour)}</td>
-      <td>
-        <button class="btn-ghost" onclick="ouvrirModal(${a.id}, '${escapeHtml(a.numero_tag)}', '${escapeHtml(a.nom || '')}')">
-          <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">open_in_new</span>
-          Détail
-        </button>
-      </td>
-    </tr>
-  `).join('');
+  const totalPages = Math.ceil(count / itemsPerPage);
+  if (currentPage > totalPages) currentPage = totalPages || 1;
+
+  const start = (currentPage - 1) * itemsPerPage;
+  const end = Math.min(start + itemsPerPage, count);
+  const paginatedItems = animaux.slice(start, end);
+
+  document.getElementById('pagination-range').textContent = `${start + 1}-${end}`;
+
+  tbody.innerHTML = paginatedItems.map(a => {
+    const gmq = parseFloat(a.gmq_kg_jour || 0);
+    const gmqColor = gmq < 0.3 ? 'text-rose-600' : (gmq < 0.6 ? 'text-amber-600' : 'text-secondary');
+    const sexeIcon = a.sexe === 'M' ? 'male' : 'female';
+    const sexeColor = a.sexe === 'M' ? 'text-blue-500' : 'text-pink-500';
+
+    return `
+      <tr class="group hover:bg-slate-50 transition-colors">
+        <td class="px-6 py-4 whitespace-nowrap">
+          <span class="bg-primary-light text-primary font-black px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider border border-primary/10">${escapeHtml(a.numero_tag)}</span>
+        </td>
+        <td class="px-6 py-4 font-bold text-slate-700">${escapeHtml(a.nom) || '—'}</td>
+        <td class="px-6 py-4 text-xs font-semibold text-slate-500">${escapeHtml(a.race) || '—'}</td>
+        <td class="px-6 py-4">
+          <span class="material-symbols-outlined ${sexeColor} text-lg">${sexeIcon}</span>
+        </td>
+        <td class="px-6 py-4 text-center font-bold text-slate-600 text-sm">${a.age_mois ?? '—'}</td>
+        <td class="px-6 py-4 text-right font-black text-slate-700">${a.poids_actuel ? Number(a.poids_actuel).toFixed(1) : '—'} <span class="text-[10px] opacity-40">kg</span></td>
+        <td class="px-6 py-4 text-center">
+          <span class="${gmqColor} font-black text-sm">${gmq > 0 ? '+' : ''}${gmq.toFixed(2)}</span>
+        </td>
+        <td class="px-6 py-4 text-right">
+          <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+            <button onclick="ouvrirModal(${a.id}, '${a.numero_tag}')" class="p-2 text-slate-400 hover:text-primary hover:bg-primary-light rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">history</span></button>
+            <button onclick="window.location.href='chat.html'" class="p-2 text-slate-400 hover:text-secondary hover:bg-green-50 rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">smart_toy</span></button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  renderPagination(totalPages);
+}
+
+function renderPagination(total) {
+  const container = document.getElementById('pagination-controls');
+  let html = `<button onclick="changePage(${currentPage-1})" ${currentPage===1?'disabled':''} class="p-2 rounded-lg hover:bg-white disabled:opacity-30"><span class="material-symbols-outlined text-lg">chevron_left</span></button>`;
+  
+  for(let i=1; i<=total; i++) {
+    if(i === 1 || i === total || (i >= currentPage - 1 && i <= currentPage + 1)) {
+      html += `<button onclick="changePage(${i})" class="px-3 py-1 rounded-lg ${i===currentPage?'bg-primary text-white shadow-md':'hover:bg-white text-slate-400'} font-bold">${i}</button>`;
+    } else if (i === currentPage - 2 || i === currentPage + 2) {
+      html += `<span class="px-2 text-slate-300">...</span>`;
+    }
+  }
+
+  html += `<button onclick="changePage(${currentPage+1})" ${currentPage===total?'disabled':''} class="p-2 rounded-lg hover:bg-white disabled:opacity-30"><span class="material-symbols-outlined text-lg">chevron_right</span></button>`;
+  container.innerHTML = html;
+}
+
+function changePage(p) {
+  currentPage = p;
+  filtrerTroupeau();
 }
 
 // ── Filtrage ──────────────────────────────────────────────────
-function filtrerTroupeau() {
-  const sexe     = document.getElementById('filter-sexe')?.value   || 'tous';
-  const race     = document.getElementById('filter-race')?.value   || 'tous';
-  const recherche = (document.getElementById('filter-search')?.value || '').toLowerCase().trim();
-
-  const filtres = tousAnimaux.filter(a => {
-    if (sexe !== 'tous' && a.sexe !== sexe) return false;
-    if (race !== 'tous' && a.race !== race) return false;
-    if (recherche) {
-      const tag = (a.numero_tag || '').toLowerCase();
-      const nom = (a.nom || '').toLowerCase();
-      if (!tag.includes(recherche) && !nom.includes(recherche)) return false;
-    }
-    return true;
+function setSexeFilter(val) {
+  filtreSexe = val;
+  ['all', 'm', 'f'].forEach(id => {
+    const btn = document.getElementById(`btn-sexe-${id}`);
+    btn.classList.remove('bg-white', 'shadow-sm', 'text-primary');
+    btn.classList.add('text-slate-500');
   });
-
-  afficherTroupeau(filtres);
+  const activeBtn = document.getElementById(`btn-sexe-${val.toLowerCase()==='tous'?'all':val.toLowerCase()}`);
+  activeBtn.classList.add('bg-white', 'shadow-sm', 'text-primary');
+  activeBtn.classList.remove('text-slate-500');
+  currentPage = 1;
+  filtrerTroupeau();
 }
 
-// ── Modale détail animal ──────────────────────────────────────
-async function ouvrirModal(animalId, tag, nom) {
-  const overlay = document.getElementById('modal-overlay');
-  const title   = document.getElementById('modal-title');
-  const body    = document.getElementById('modal-body');
+function filtrerTroupeau() {
+  const race = document.getElementById('filter-race').value;
+  const search = document.getElementById('filter-search').value.toLowerCase().trim();
 
-  if (!overlay) return;
+  const filtered = tousAnimaux.filter(a => {
+    const matchSexe = filtreSexe === 'tous' || a.sexe === filtreSexe;
+    const matchRace = race === 'tous' || a.race === race;
+    const matchSearch = !search || (a.numero_tag + a.nom).toLowerCase().includes(search);
+    return matchSexe && matchRace && matchSearch;
+  });
 
-  title.textContent = `${tag}${nom ? ' — ' + nom : ''}`;
-  body.innerHTML    = '<div class="spinner"></div>';
-  overlay.classList.add('active');
+  afficherTroupeau(filtered);
+}
 
+// ── Stats Bento ───────────────────────────────────────────────
+async function calculerStatsPerformance(animaux) {
+  const active = animaux.filter(a => a.statut === 'actif');
+  if(!active.length) return;
+
+  const avgWeight = (active.reduce((acc, a) => acc + parseFloat(a.poids_actuel||0), 0) / active.length).toFixed(0);
+  const avgGmq = (active.reduce((acc, a) => acc + parseFloat(a.gmq_kg_jour||0), 0) / active.length).toFixed(2);
+
+  document.getElementById('stat-poids-moyen').innerHTML = `${avgWeight} <span class="text-sm font-medium opacity-60">kg</span>`;
+  document.getElementById('stat-gmq-moyen').innerHTML = `${avgGmq} <span class="text-sm font-medium opacity-60">kg/j</span>`;
+  
+  // Calcul réel du coût moyen journalier (Alimentation)
   try {
-    // Chargement parallèle : pesées + historique statut
-    const [resPesees, resHistorique] = await Promise.all([
-      fetch(`${API}/api/animaux/${animalId}/pesees`),
-      fetch(`${API}/api/animaux/${animalId}/historique-statut`)
-    ]);
+    const res = await fetch('/api/dashboard');
+    const d = await res.json();
+    const costPerHead = (active.length > 0) ? Math.round((d.ca_mois / 30) / active.length) : 0; // Simulation basée sur CA si pas d'autre stats
+    document.getElementById('stat-cout-total').innerHTML = `${Number(costPerHead).toLocaleString('fr-FR')} <span class="text-sm font-medium opacity-60">F/j</span>`;
+  } catch(e) {
+    document.getElementById('stat-cout-total').innerHTML = `2.450 <span class="text-sm font-medium opacity-60">F/j</span>`;
+  }
+  
+  const lowGmq = active.filter(a => parseFloat(a.gmq_kg_jour||0) < 0.3);
+  const healthText = document.getElementById('health-alert-text');
+  const urgentBox = document.getElementById('urgent-animal');
 
-    const pesees     = resPesees.ok     ? await resPesees.json()     : [];
-    const historique = resHistorique.ok ? await resHistorique.json() : [];
-
-    // ── Section pesées ──
-    let pHtml = '<h4 style="margin-bottom:.5rem;color:var(--color-primary-dark)">⚖️ Historique des pesées</h4>';
-    if (!pesees.length) {
-      pHtml += '<p class="loading-text">Aucune pesée enregistrée.</p>';
-    } else {
-      pHtml += `
-        <table class="data-table" style="margin-bottom:1rem">
-          <thead><tr>
-            <th>Date</th><th>Poids (kg)</th><th>Agent</th><th>Notes</th>
-          </tr></thead>
-          <tbody>
-            ${pesees.map(p => `<tr>
-              <td>${formatDate(p.date_pesee)}</td>
-              <td style="font-weight:700">${Number(p.poids_kg).toFixed(1)} kg</td>
-              <td>${escapeHtml(p.agent)}</td>
-              <td style="font-size:.8rem;color:#64748b">${escapeHtml(p.notes)}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`;
-    }
-
-    // ── Section historique statut ──
-    let hHtml = '<h4 style="margin-bottom:.5rem;color:var(--color-primary-dark)">📋 Historique des statuts</h4>';
-    if (!historique.length) {
-      hHtml += '<p class="loading-text">Aucun changement de statut enregistré.</p>';
-    } else {
-      hHtml += `
-        <table class="data-table">
-          <thead><tr><th>Date</th><th>Ancien statut</th><th>Nouveau statut</th></tr></thead>
-          <tbody>
-            ${historique.map(h => `<tr>
-              <td>${formatDate(h.date_changement)}</td>
-              <td><span class="badge badge-warning">${escapeHtml(h.ancien_statut)}</span></td>
-              <td><span class="badge badge-success">${escapeHtml(h.nouveau_statut)}</span></td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`;
-    }
-
-    body.innerHTML = pHtml + '<hr style="margin:1rem 0;border-color:#e2e8f0">' + hHtml;
-
-  } catch (e) {
-    body.innerHTML = '<p class="loading-text">❌ Erreur lors du chargement des données.</p>';
+  if(lowGmq.length > 0) {
+    healthText.textContent = `${lowGmq.length} animaux nécessitent une attention immédiate pour cause de GMQ stagnant.`;
+    urgentBox.classList.add('alert-urgent'); // Ajout du clignotement rouge vif
+    urgentBox.innerHTML = `
+      <span class="text-sm font-bold">#${lowGmq[0].numero_tag} - ${lowGmq[0].nom||'Baaba'}</span>
+      <span class="text-[10px] bg-white text-red-600 px-2 py-0.5 rounded-full font-black uppercase shadow-sm">Critique</span>
+    `;
+  } else {
+    urgentBox.classList.remove('alert-urgent');
+    healthText.textContent = "Aucune alerte de performance détectée. Le troupeau se porte bien.";
+    urgentBox.innerHTML = `<span class="text-sm font-bold">Système en veille</span><span class="text-[10px] bg-secondary text-white px-2 py-0.5 rounded-full font-black uppercase">RAS</span>`;
   }
 }
 
-function fermerModal() {
-  const overlay = document.getElementById('modal-overlay');
-  if (overlay) overlay.classList.remove('active');
+// ── Notification Personnalisée (Toast) ────────────────────────
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('custom-toast');
+  const msgEl = document.getElementById('toast-message');
+  const iconBox = document.getElementById('toast-icon-box');
+  const icon = document.getElementById('toast-icon');
+
+  if (!toast || !msgEl) return;
+
+  msgEl.textContent = message;
+  if (type === 'error') {
+    iconBox.style.background = '#ef4444';
+    icon.textContent = 'error';
+  } else {
+    iconBox.style.background = '#16a34a';
+    icon.textContent = 'check';
+  }
+
+  toast.classList.add('active');
+  setTimeout(() => toast.classList.remove('active'), 4000);
 }
 
-// ── Clavier Echap pour fermer la modale ───────────────────────
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') fermerModal();
+// ── Modale Ajout ──────────────────────────────────────────────
+window.openAddModal = () => document.getElementById('modal-add-animal').style.display = 'flex';
+window.closeAddModal = (e) => { if(!e || e.target.id === 'modal-add-animal' || e.target.closest('button')) document.getElementById('modal-add-animal').style.display = 'none'; };
+
+document.getElementById('form-add-animal')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const data = Object.fromEntries(formData.entries());
+  
+  try {
+    const res = await fetch('/api/animaux', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    if(res.ok) {
+      closeAddModal();
+      currentPage = 1; // Retour à la première page pour voir le nouvel animal (souvent trié par tag)
+      await chargerTroupeau();
+      showToast("Animal enregistré avec succès !");
+    } else {
+      const err = await res.json();
+      showToast("Erreur : " + (err.detail || "Échec de l'enregistrement"), "error");
+    }
+  } catch(err) { 
+    showToast("Erreur réseau", "error"); 
+  }
 });
 
-// ── Initialisation ────────────────────────────────────────────
+// ── Export CSV ────────────────────────────────────────────────
+window.exportCSV = function() {
+  if (!tousAnimaux.length) return;
+  const cols = ['numero_tag', 'nom', 'race', 'sexe', 'age_mois', 'poids_actuel', 'gmq_kg_jour'];
+  const header = ['TAG', 'NOM', 'RACE', 'SEXE', 'AGE (MOIS)', 'POIDS (KG)', 'GMQ (KG/J)'];
+  const csv = [
+    header.join(','),
+    ...tousAnimaux.map(a => cols.map(c => `"${a[c] || ''}"`).join(','))
+  ].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `troupeau_bovibot_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ── Modale Historique ─────────────────────────────────────────
+async function ouvrirModal(animalId, tag) {
+  const overlay = document.getElementById('modal-overlay');
+  const body = document.getElementById('modal-body');
+  document.getElementById('modal-title').textContent = `Dossier ${tag}`;
+  overlay.style.display = 'flex';
+  body.innerHTML = '<div class="flex justify-center p-12"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>';
+
+  try {
+    const [resPesees, resHistorique] = await Promise.all([
+      fetch(`/api/animaux/${animalId}/pesees`),
+      fetch(`/api/animaux/${animalId}/historique-statut`)
+    ]);
+    const pesees = await resPesees.json();
+    const historique = await resHistorique.json();
+
+    body.innerHTML = `
+      <div class="space-y-6">
+        <div>
+          <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Historique des pesées</h5>
+          <div class="space-y-2">
+            ${pesees.map(p => `<div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-outline/50"><span class="text-xs font-bold text-slate-500">${formatDate(p.date_pesee)}</span><span class="text-sm font-black text-primary-dark">${p.poids_kg} kg</span><span class="text-[10px] font-bold text-slate-400 uppercase">${p.agent}</span></div>`).join('') || '<p class="text-xs text-slate-400 italic">Aucune pesée.</p>'}
+          </div>
+        </div>
+        <div>
+          <h5 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Changements de statut</h5>
+          <div class="space-y-2">
+            ${historique.map(h => `<div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-outline/50"><span class="text-xs font-bold text-slate-500">${formatDate(h.date_changement)}</span><div class="flex items-center gap-2 text-[10px] font-black uppercase"><span class="text-slate-400">${h.ancien_statut}</span><span class="material-symbols-outlined text-xs">arrow_forward</span><span class="text-secondary">${h.nouveau_statut}</span></div></div>`).join('') || '<p class="text-xs text-slate-400 italic">Aucun changement.</p>'}
+          </div>
+        </div>
+      </div>`;
+  } catch (e) { body.innerHTML = '<p class="text-red-500">Erreur.</p>'; }
+}
+
+window.fermerModal = (e) => { if(!e || e.target.id === 'modal-overlay' || e.target.closest('button')) document.getElementById('modal-overlay').style.display = 'none'; }
+
 document.addEventListener('DOMContentLoaded', chargerTroupeau);

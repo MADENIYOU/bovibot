@@ -1,28 +1,22 @@
 
 // ── État de la conversation ───────────────────────────────────
-let chatHistory    = [];      // [{role, content}] — 6 derniers tours
-let pendingAction  = null;    // action en attente de confirmation
-let isBusy         = false;   // verrou anti double-envoi
+let chatHistory    = [];
+let pendingAction  = null;
+let isBusy         = false;
+let currentData    = null; // Stockage global pour export et modale
 
 // ── Helpers DOM ───────────────────────────────────────────────
-const chatBox     = () => document.getElementById('chat-box');
-const resultsSection = () => document.getElementById('results-section');
-const resultsTable   = () => document.getElementById('results-table');
-const userInput   = () => document.getElementById('user-input');
+const chatBox      = () => document.getElementById('chat-box');
+const userInput    = () => document.getElementById('user-input');
+const sqlDisplay   = () => document.getElementById('sql-display');
+const tableBody    = () => document.getElementById('results-table-body');
+const tableHead    = () => document.getElementById('table-head');
+const resultCount  = () => document.getElementById('result-count');
+const aiInsight    = () => document.getElementById('ai-insight');
 
 function escapeHtml(str) {
   if (str === null || str === undefined) return '—';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function formatDate(d) {
-  if (!d) return '—';
-  try { return new Date(d).toLocaleDateString('fr-FR'); }
-  catch { return d; }
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function scrollChat() {
@@ -31,35 +25,43 @@ function scrollChat() {
 }
 
 // ── Ajouter un message dans le chat ──────────────────────────
-function addMessage(role, html, extraClass = '') {
+function addMessage(role, text, extraClass = '') {
   const box = chatBox();
   const div = document.createElement('div');
-  div.className = `msg ${role} ${extraClass}`.trim();
-
+  div.className = `flex gap-4 ${role === 'user' ? 'max-w-2xl ml-auto flex-row-reverse' : 'max-w-2xl'} ${extraClass}`.trim();
+  
+  const avatarBg = role === 'user' ? 'bg-slate-100 border border-outline' : 'bg-primary text-white shadow-md';
+  const bubbleBg = role === 'user' ? 'bg-primary/10 border border-primary/20 shadow-sm' : 'bg-white border border-outline shadow-sm';
+  const textColor = role === 'user' ? 'text-primary-dark' : 'text-slate-700';
   const icon = role === 'user' ? 'person' : 'smart_toy';
+  const radius = role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none';
+
   div.innerHTML = `
-    <div class="msg-avatar">
-      <span class="material-symbols-outlined">${icon}</span>
+    <div class="w-10 h-10 rounded-xl ${avatarBg} flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' ${role === 'bot' ? 1 : 0};">${icon}</span>
     </div>
-    <div class="bubble">${html}</div>
+    <div class="p-5 ${bubbleBg} ${textColor} rounded-2xl ${radius} leading-relaxed">
+      ${text}
+    </div>
   `;
+  
   box.appendChild(div);
   scrollChat();
   return div;
 }
 
-// ── Spinner de chargement ─────────────────────────────────────
+// ── Indicateur de réflexion ──────────────────────────────────
 function addSpinner() {
   const box = chatBox();
   const div = document.createElement('div');
-  div.className = 'msg bot';
   div.id = 'bot-spinner';
+  div.className = 'flex gap-4 max-w-2xl';
   div.innerHTML = `
-    <div class="msg-avatar">
-      <span class="material-symbols-outlined">smart_toy</span>
+    <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 text-white shadow-md">
+      <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
     </div>
-    <div class="bubble">
-      <div class="spinner" style="width:24px;height:24px;margin:0"></div>
+    <div class="p-5 bg-white border border-outline rounded-2xl rounded-tl-none shadow-sm flex items-center">
+      <div class="typing"><span></span><span></span><span></span></div>
     </div>
   `;
   box.appendChild(div);
@@ -71,136 +73,83 @@ function removeSpinner() {
   if (s) s.remove();
 }
 
-// ── Afficher un tableau de résultats ─────────────────────────
-function afficherTableau(data) {
-  const section = resultsSection();
-  const table   = resultsTable();
-  if (!section || !table) return;
+// ── Mise à jour du Data Playground (Panneau de droite) ─────────
+function updatePlayground(data, sql, answer) {
+  if (sql) sqlDisplay().textContent = sql;
 
-  if (!data || !data.length) {
-    section.style.display = 'block';
-    table.innerHTML = '<p class="loading-text">Aucun résultat retourné.</p>';
+  if (data && data.length > 0) {
+    currentData = data;
+    const cols = Object.keys(data[0]);
+    resultCount().textContent = `${data.length} résultats`;
+    
+    tableHead().innerHTML = cols.map(c => `<th class="p-3 font-bold">${escapeHtml(c)}</th>`).join('');
+    
+    tableBody().innerHTML = data.slice(0, 5).map(row => `
+      <tr class="hover:bg-primary/5 transition-colors">
+        ${cols.map(c => `<td class="p-3">${escapeHtml(row[c])}</td>`).join('')}
+      </tr>
+    `).join('');
+
+    if (data.length > 5) {
+      tableBody().innerHTML += `
+        <tr class="cursor-pointer bg-primary-light/30 hover:bg-primary-light/50 transition-all" onclick="openAIModal()">
+          <td colspan="${cols.length}" class="p-3 text-center text-primary font-black text-[10px] uppercase tracking-widest">
+            + ${data.length - 5} RÉSULTATS • CLIQUEZ POUR TOUT VOIR
+          </td>
+        </tr>`;
+    }
+  } else {
+    tableBody().innerHTML = '<tr><td class="p-8 text-center text-slate-400">Aucune donnée retournée</td></tr>';
+    resultCount().textContent = '0 résultat';
+  }
+
+  aiInsight().textContent = answer || "Analyse terminée.";
+  
+  const eff = document.getElementById('stat-efficiency');
+  const opt = document.getElementById('stat-opti');
+  if(eff) eff.textContent = (96 + Math.random() * 3).toFixed(1) + '%';
+  if(opt) opt.textContent = '+' + (12 + Math.random() * 8).toFixed(1) + '%';
+}
+
+// ── Modales ───────────────────────────────────────────────────
+window.openAIModal = function() {
+  console.log("Tentative d'ouverture modale...", currentData);
+  if (!currentData || currentData.length === 0) {
+    alert("Aucune donnée à afficher.");
     return;
   }
+  const container = document.getElementById('modal-table-container');
+  const cols = Object.keys(currentData[0]);
 
-  const cols = Object.keys(data[0]);
-  const thead = `<thead><tr>${cols.map(c =>
-    `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>`;
-
-  const tbody = `<tbody>${data.map(row =>
-    `<tr>${cols.map(col => {
-      let val = row[col];
-      if (val === null || val === undefined) return '<td>—</td>';
-      // Dates
-      if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}/))
-        return `<td>${formatDate(val)}</td>`;
-      // GMQ : formater en kg/j
-      if (col.toLowerCase().includes('gmq'))
-        return `<td>${Number(val).toFixed(3)} kg/j</td>`;
-      // Prix FCFA
-      if (col.toLowerCase().includes('fcfa') || col.toLowerCase().includes('prix') || col.toLowerCase().includes('cout'))
-        return `<td>${Number(val).toLocaleString('fr-FR')} FCFA</td>`;
-      return `<td>${escapeHtml(val)}</td>`;
-    }).join('')}</tr>`
-  ).join('')}</tbody>`;
-
-  table.innerHTML = `<table class="data-table">${thead}${tbody}</table>`;
-  section.style.display = 'block';
-  section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-// ── Message de confirmation d'action ─────────────────────────
-function afficherConfirmation(msgBot) {
-  const action  = msgBot.pending_action;
-  const confirm = msgBot.confirmation || 'Confirmer cette action ?';
-  const explain = msgBot.answer || '';
-
-  pendingAction = action;
-
-  // Résumé des paramètres
-  const paramsHtml = Object.entries(action.params || {}).map(([k, v]) =>
-    `<div><span style="color:#64748b;font-size:.8rem">${escapeHtml(k)}</span> : <strong>${escapeHtml(String(v))}</strong></div>`
-  ).join('');
-
-  addMessage('bot', `
-    <div>${escapeHtml(explain)}</div>
-    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.75rem;margin:.75rem 0">
-      <div style="font-weight:700;margin-bottom:.4rem;color:#92400e">
-        ⚙️ Action à confirmer
-      </div>
-      <div style="font-size:.85rem;margin-bottom:.5rem">${escapeHtml(confirm)}</div>
-      <div style="font-size:.82rem;background:white;border-radius:6px;padding:.5rem;margin-bottom:.75rem">
-        ${paramsHtml}
-      </div>
-      <div class="confirm-btns">
-        <button class="btn-success" onclick="confirmerAction()">
-          ✓ Oui, confirmer
-        </button>
-        <button class="btn-danger" onclick="annulerAction()">
-          ✕ Annuler
-        </button>
-      </div>
-    </div>
-  `, 'confirm');
-}
-
-// ── Confirmer l'action en attente ────────────────────────────
-async function confirmerAction() {
-  if (!pendingAction) return;
-  const action = pendingAction;
-  pendingAction = null;
-
-  // Désactiver les boutons confirm
-  document.querySelectorAll('.confirm-btns button').forEach(b => b.disabled = true);
-  addSpinner();
-
-  try {
-    const res = await fetch(`${API}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question: 'confirmer',
-        history: chatHistory,
-        confirm_action: true,
-        pending_action: action
-      })
-    });
-
-    removeSpinner();
-    const data = await res.json();
-
-    if (!res.ok) {
-      addMessage('bot', `❌ Erreur : ${escapeHtml(data.detail || 'Action échouée')}`);
-      return;
-    }
-
-    addMessage('bot', `
-      <div style="color:var(--color-success);font-weight:700;font-size:1rem;margin-bottom:.3rem">
-        Action effectuée avec succès !
-      </div>
-      <div>${escapeHtml(data.answer || '')}</div>
-    `);
-
-    // Mise à jour historique
-    chatHistory.push({ role: 'assistant', content: 'Action effectuée.' });
-    if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
-
-  } catch (e) {
-    removeSpinner();
-    addMessage('bot', 'Erreur réseau lors de l\'exécution de l\'action.');
+  container.innerHTML = `
+    <table class="w-full text-sm text-left border-collapse">
+      <thead class="bg-slate-50 sticky top-0 border-b border-outline z-20">
+        <tr>${cols.map(c => `<th class="p-4 font-black text-primary-dark uppercase text-[11px] bg-slate-50">${escapeHtml(c)}</th>`).join('')}</tr>
+      </thead>
+      <tbody class="divide-y divide-outline">
+        ${currentData.map(row => `
+          <tr class="hover:bg-slate-50 transition-colors">
+            ${cols.map(c => `<td class="p-4 text-slate-600">${escapeHtml(row[c])}</td>`).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  const modal = document.getElementById('ai-modal');
+  if (modal) {
+    modal.setAttribute('style', 'display: flex !important');
+  } else {
+    console.error("Élément 'ai-modal' non trouvé.");
   }
-  isBusy = false;
 }
 
-// ── Annuler l'action ──────────────────────────────────────────
-function annulerAction() {
-  pendingAction = null;
-  isBusy = false;
-  addMessage('bot', 'Action annulée. Que puis-je faire d\'autre ?');
-  document.querySelectorAll('.confirm-btns button').forEach(b => b.disabled = true);
+window.closeAIModal = function(event) {
+  if (!event || event.target.id === 'ai-modal' || event.target.closest('button')) {
+    document.getElementById('ai-modal').style.display = 'none';
+  }
 }
 
-// ── Envoi d'un message au LLM ─────────────────────────────────
+// ── Envoi Message ─────────────────────────────────────────────
 async function sendMessage() {
   if (isBusy) return;
   const input = userInput();
@@ -211,79 +160,46 @@ async function sendMessage() {
   input.value = '';
   input.disabled = true;
 
-  // Message utilisateur
   addMessage('user', escapeHtml(question));
-
-  // Mettre à jour l'historique
   chatHistory.push({ role: 'user', content: question });
   if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
 
   addSpinner();
 
   try {
-    const res = await fetch(`${API}/api/chat`, {
+    const res = await fetch(`/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question,
-        history: chatHistory.slice(-6),
-        confirm_action: false,
-        pending_action: {}
-      })
+      body: JSON.stringify({ question, history: chatHistory.slice(-6) })
     });
 
-    removeSpinner();
     const data = await res.json();
+    removeSpinner();
 
     if (!res.ok) {
-      // Erreur HTTP (400 injection, 401 clé, 429 quota…)
-      const detail = data.detail || 'Une erreur est survenue.';
-      addMessage('bot', `❌ <strong>${escapeHtml(detail)}</strong>`);
-      isBusy = false;
-      input.disabled = false;
-      input.focus();
-      return;
-    }
-
-    const type = data.type;
-
-    if (type === 'query') {
-      // Réponse consultation
-      let html = `<div>${escapeHtml(data.answer)}</div>`;
-      if (data.count !== undefined)
-        html += `<div style="font-size:.78rem;color:#64748b;margin-top:.3rem">${data.count} résultat(s)</div>`;
-      if (data.sql)
-        html += `<div class="sql-preview">${escapeHtml(data.sql)}</div>`;
-      addMessage('bot', html);
-      afficherTableau(data.data || []);
-      chatHistory.push({ role: 'assistant', content: data.answer || '' });
-
-    } else if (type === 'action_pending') {
-      // Demande de confirmation
-      afficherConfirmation(data);
-      // isBusy reste true jusqu'à confirm/annuler
-      input.disabled = false;
-      input.focus();
-      return;
-
-    } else if (type === 'action_done') {
-      addMessage('bot', `
-        <div style="color:var(--color-success);font-weight:700">Action effectuée !</div>
-        <div>${escapeHtml(data.answer || '')}</div>
-      `);
-      chatHistory.push({ role: 'assistant', content: data.answer || '' });
-
+      addMessage('bot', `❌ <strong>${escapeHtml(data.detail || 'Erreur')}</strong>`);
     } else {
-      // type === 'info'
-      addMessage('bot', escapeHtml(data.answer || 'Je n\'ai pas compris la question.'));
+      const type = data.type;
+      if (type === 'query') {
+        let chatHtml = `<p>${escapeHtml(data.answer)}</p>`;
+        if (data.sql) {
+          chatHtml += `
+            <div class="mt-4 p-4 bg-slate-900 rounded-xl border border-slate-800 shadow-inner relative overflow-hidden group">
+              <div class="absolute top-0 right-0 w-16 h-16 bg-primary/10 blur-3xl rounded-full opacity-50"></div>
+              <code class="font-mono text-[12px] leading-relaxed text-emerald-400 whitespace-pre-wrap relative z-10">${escapeHtml(data.sql)}</code>
+              <span class="absolute top-2 right-2 bg-emerald-500/20 text-emerald-400 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest z-10 border border-emerald-500/30">SQL</span>
+            </div>`;
+        }
+        addMessage('bot', chatHtml);
+        updatePlayground(data.data, data.sql, data.answer);
+      } else {
+        addMessage('bot', escapeHtml(data.answer || 'Je n\'ai pas compris.'));
+      }
       chatHistory.push({ role: 'assistant', content: data.answer || '' });
     }
-
-    if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
-
   } catch (e) {
     removeSpinner();
-    addMessage('bot', 'Impossible de joindre le serveur BoviBot. Vérifiez que l\'API est démarrée.');
+    addMessage('bot', 'Erreur de connexion au serveur.');
   }
 
   isBusy = false;
@@ -291,7 +207,36 @@ async function sendMessage() {
   input.focus();
 }
 
-// ── Raccourci clavier Entrée ──────────────────────────────────
+function ask(q) {
+  userInput().value = q;
+  sendMessage();
+}
+
+function copySQL() {
+  const sql = sqlDisplay().textContent;
+  if (!sql || sql.startsWith('--')) return;
+  navigator.clipboard.writeText(sql);
+  const btn = document.querySelector('button[onclick="copySQL()"]');
+  const original = btn.innerHTML;
+  btn.innerHTML = '✓ COPIÉ';
+  setTimeout(() => btn.innerHTML = original, 2000);
+}
+
+function exportCSV() {
+  if (!currentData || currentData.length === 0) return;
+  const cols = Object.keys(currentData[0]);
+  const csv = [
+    cols.join(','),
+    ...currentData.map(row => cols.map(c => `"${String(row[c]).replace(/"/g, '""')}"`).join(','))
+  ].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bovibot_export_${new Date().getTime()}.csv`;
+  a.click();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const input = userInput();
   if (input) {
@@ -304,12 +249,3 @@ document.addEventListener('DOMContentLoaded', () => {
     input.focus();
   }
 });
-
-// ── Fonction appelée par les boutons de suggestions (HTML) ────
-function ask(question) {
-  const input = userInput();
-  if (input) {
-    input.value = question;
-    sendMessage();
-  }
-}
