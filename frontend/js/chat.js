@@ -5,6 +5,27 @@ let pendingAction  = null;
 let isBusy         = false;
 let currentData    = null; // Stockage global pour export et modale
 
+// ── Gestion Sidebar Mobile (Data Playground) ──────────────────
+window.togglePlayground = function() {
+  const playground = document.getElementById('data-playground');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!playground || !overlay) return;
+
+  const isOpen = playground.classList.contains('translate-x-0');
+  
+  if (isOpen) {
+    playground.classList.remove('translate-x-0');
+    playground.classList.add('translate-x-full');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  } else {
+    playground.classList.remove('translate-x-full');
+    playground.classList.add('translate-x-0');
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
 // ── Helpers DOM ───────────────────────────────────────────────
 const chatBox      = () => document.getElementById('chat-box');
 const userInput    = () => document.getElementById('user-input');
@@ -98,6 +119,11 @@ function updatePlayground(data, sql, answer) {
           </td>
         </tr>`;
     }
+
+    // Auto-ouvrir la modale sur mobile (visual overhaul)
+    if (window.innerWidth < 1024) {
+      setTimeout(openAIModal, 300); // Petit délai pour laisser l'animation de réponse se faire
+    }
   } else {
     tableBody().innerHTML = '<tr><td class="p-8 text-center text-slate-400">Aucune donnée retournée</td></tr>';
     resultCount().textContent = '0 résultat';
@@ -122,18 +148,20 @@ window.openAIModal = function() {
   const cols = Object.keys(currentData[0]);
 
   container.innerHTML = `
-    <table class="w-full text-sm text-left border-collapse">
-      <thead class="bg-slate-50 sticky top-0 border-b border-outline z-20">
-        <tr>${cols.map(c => `<th class="p-4 font-black text-primary-dark uppercase text-[11px] bg-slate-50">${escapeHtml(c)}</th>`).join('')}</tr>
-      </thead>
-      <tbody class="divide-y divide-outline">
-        ${currentData.map(row => `
-          <tr class="hover:bg-slate-50 transition-colors">
-            ${cols.map(c => `<td class="p-4 text-slate-600">${escapeHtml(row[c])}</td>`).join('')}
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
+    <div class="overflow-x-auto w-full">
+      <table class="w-full text-sm text-left border-collapse min-w-[600px]">
+        <thead class="bg-slate-50 sticky top-0 border-b border-outline z-20">
+          <tr>${cols.map(c => `<th class="p-4 font-black text-primary-dark uppercase text-[11px] bg-slate-50">${escapeHtml(c)}</th>`).join('')}</tr>
+        </thead>
+        <tbody class="divide-y divide-outline">
+          ${currentData.map(row => `
+            <tr class="hover:bg-slate-50 transition-colors">
+              ${cols.map(c => `<td class="p-4 text-slate-600">${escapeHtml(row[c])}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
   `;
   const modal = document.getElementById('ai-modal');
   if (modal) {

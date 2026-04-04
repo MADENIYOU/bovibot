@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
   <title>BoviBot - Gestion du Troupeau</title>
+  <link rel="stylesheet" href="../css/style.css">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
@@ -101,7 +102,7 @@
   </div>
 
   <!-- SideNavBar -->
-  <aside class="fixed inset-y-0 left-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 h-full w-64 bg-surface-variant border-r border-outline flex flex-col shadow-sm">
+  <aside class="sidebar fixed inset-y-0 left-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 h-full w-64 bg-surface-variant border-r border-outline flex flex-col shadow-sm">
     <div class="p-8">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg">
@@ -154,9 +155,14 @@
     
     <!-- Header -->
     <header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-      <div>
-        <h2 class="font-headline text-4xl font-black text-primary-dark tracking-tight mb-2">Gestion du Troupeau</h2>
-        <p class="text-on-surface-variant font-medium">Inventaire en temps réel et indicateurs de performance bovine.</p>
+      <div class="flex items-center gap-4">
+        <button id="hamburger-btn" class="hamburger-btn">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div>
+          <h2 class="font-headline text-4xl font-black text-primary-dark tracking-tight mb-2">Gestion du Troupeau</h2>
+          <p class="text-on-surface-variant font-medium">Inventaire en temps réel et indicateurs de performance bovine.</p>
+        </div>
       </div>
       <div class="flex gap-3">
         <button onclick="exportCSV()" class="flex items-center gap-2 px-5 py-2.5 bg-white text-primary border border-outline rounded-xl font-bold transition-all hover:bg-primary-light shadow-sm">
@@ -353,6 +359,8 @@
       </div>
     </div>
   </div>
+
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
   <script src="../js/nav.js"></script>
   <script src="../js/troupeau.js"></script>

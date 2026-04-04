@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
   <title>BoviBot - Rapports Analytiques</title>
+  <link rel="stylesheet" href="../css/style.css">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
@@ -34,7 +35,7 @@
 <body class="bg-background text-slate-900 font-body antialiased overflow-x-hidden">
 
   <!-- SideNavBar -->
-  <aside class="fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-outline flex flex-col shadow-sm">
+  <aside class="sidebar fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-outline flex flex-col shadow-sm">
     <div class="p-8">
       <h1 class="text-xl font-black text-primary-dark">BoviBot</h1>
       <p class="text-[10px] uppercase font-bold text-primary opacity-70">Analytics Center</p>
@@ -61,11 +62,16 @@
     </nav>
   </aside>
 
-  <main class="ml-64 p-10 min-h-screen">
+  <main class="md:ml-64 p-10 min-h-screen">
     <header class="mb-10 flex justify-between items-end">
-      <div>
-        <h2 class="text-4xl font-black text-primary-dark tracking-tight mb-2">Rapports & Analyses</h2>
-        <p class="text-slate-500 font-medium">Visualisez la performance globale de votre exploitation.</p>
+      <div class="flex items-center gap-4">
+        <button id="hamburger-btn" class="hamburger-btn">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div>
+          <h2 class="text-4xl font-black text-primary-dark tracking-tight mb-2">Rapports & Analyses</h2>
+          <p class="text-slate-500 font-medium">Visualisez la performance globale de votre exploitation.</p>
+        </div>
       </div>
       <button onclick="window.print()" class="flex items-center gap-2 px-5 py-2.5 bg-white text-primary border border-outline rounded-xl font-bold shadow-sm hover:bg-primary-light transition-all">
         <span class="material-symbols-outlined">print</span> Imprimer le rapport
@@ -121,24 +127,29 @@
         <div class="p-6 border-b border-outline bg-slate-50">
           <h3 class="font-black text-primary-dark uppercase text-xs tracking-widest">Top Performance (GMQ)</h3>
         </div>
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-white border-b border-outline text-[10px] font-black text-slate-400 uppercase">
-              <th class="px-6 py-4">Animal</th>
-              <th class="px-6 py-4">Race</th>
-              <th class="px-6 py-4 text-right">Poids</th>
-              <th class="px-6 py-4 text-right">GMQ (kg/j)</th>
-            </tr>
-          </thead>
-          <tbody id="top-performers-body" class="divide-y divide-outline">
-            <!-- Injecté par JS -->
-          </tbody>
-        </table>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-white border-b border-outline text-[10px] font-black text-slate-400 uppercase">
+                <th class="px-6 py-4">Animal</th>
+                <th class="px-6 py-4">Race</th>
+                <th class="px-6 py-4 text-right">Poids</th>
+                <th class="px-6 py-4 text-right">GMQ (kg/j)</th>
+              </tr>
+            </thead>
+            <tbody id="top-performers-body" class="divide-y divide-outline">
+              <!-- Injecté par JS -->
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>
   </main>
 
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+  <script src="../js/nav.js"></script>
   <script src="../js/reports.js"></script>
 </body>
 </html>
