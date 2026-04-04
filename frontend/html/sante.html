@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoviBot — Santé</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">BoviBot</span>
+      <div class="api-status">
+        <span class="api-dot" id="api-status-dot"></span>
+        <span class="api-text" id="api-status-text">Connexion...</span>
+      </div>
+    </div>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link nav-inactive">Dashboard</a>
+      <a href="chat.html" class="nav-link nav-inactive">Chat LLM</a>
+      <a href="troupeau.html" class="nav-link nav-inactive">Troupeau</a>
+      <a href="sante.html" class="nav-link nav-active">Santé</a>
+    </nav>
+    <div class="header-right">
+      <button class="icon-btn"><span class="material-symbols-outlined">sensors</span></button>
+      <button class="icon-btn"><span class="material-symbols-outlined">settings</span></button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h2>BoviBot</h2>
+      <p>Digital Agrarian Systems</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="chat.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">smart_toy</span>
+        <span>Chat LLM</span>
+      </a>
+      <a href="troupeau.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">pets</span>
+        <span>Troupeau</span>
+      </a>
+      <a href="sante.html" class="nav-link sidebar-link sidebar-active">
+        <span class="material-symbols-outlined">monitor_heart</span>
+        <span>Santé</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENU PRINCIPAL -->
+  <main class="main-content">
+
+    <div class="page-header">
+      <h1 class="page-title">Suivi Sanitaire</h1>
+      <p class="page-subtitle">Actes vétérinaires et alertes santé</p>
+    </div>
+
+    <!-- Alertes santé -->
+    <div class="card">
+      <h2 class="card-title">
+        <span class="material-symbols-outlined">warning</span>
+        Alertes Santé
+      </h2>
+      <div id="alertes-sante-list">
+        <p class="loading-text">Chargement...</p>
+      </div>
+    </div>
+
+    <!-- Filtre type acte -->
+    <div class="card filters-card">
+      <div class="filters">
+        <div class="filter-group">
+          <label class="filter-label">
+            <span class="material-symbols-outlined">filter_list</span>
+            Type d'acte
+          </label>
+          <select id="filter-type" class="filter-select" onchange="filtrerActes()">
+            <option value="tous">Tous les actes</option>
+            <option value="vaccination">Vaccination</option>
+            <option value="traitement">Traitement</option>
+            <option value="examen">Examen</option>
+            <option value="chirurgie">Chirurgie</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tableau actes vétérinaires -->
+    <div class="card">
+      <h2 class="card-title">
+        <span class="material-symbols-outlined">monitor_heart</span>
+        Actes vétérinaires
+        <span class="badge badge-info" id="count-actes">—</span>
+      </h2>
+      <div class="table-container">
+        <table class="data-table" id="sante-table">
+          <thead>
+            <tr>
+              <th>Animal</th>
+              <th>Type</th>
+              <th>Description</th>
+              <th>Date acte</th>
+              <th>Vétérinaire</th>
+              <th>Médicament</th>
+              <th>Coût (FCFA)</th>
+              <th>Prochain RDV</th>
+            </tr>
+          </thead>
+          <tbody id="sante-body">
+            <tr><td colspan="8" class="loading-text">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="../js/nav.js"></script>
+  <script src="../js/sante.js"></script>
+</body>
+</html>

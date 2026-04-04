@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoviBot — Dashboard</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">BoviBot</span>
+      <div class="api-status">
+        <span class="api-dot" id="api-status-dot"></span>
+        <span class="api-text" id="api-status-text">Connexion...</span>
+      </div>
+    </div>
+    <nav class="header-nav">
+      <a href="index.html" class="nav-link nav-active">Dashboard</a>
+      <a href="chat.html" class="nav-link nav-inactive">Chat LLM</a>
+      <a href="troupeau.html" class="nav-link nav-inactive">Troupeau</a>
+      <a href="sante.html" class="nav-link nav-inactive">Santé</a>
+    </nav>
+    <div class="header-right">
+      <button class="icon-btn"><span class="material-symbols-outlined">sensors</span></button>
+      <button class="icon-btn"><span class="material-symbols-outlined">settings</span></button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h2>BoviBot</h2>
+      <p>Digital Agrarian Systems</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="nav-link sidebar-link sidebar-active">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="chat.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">smart_toy</span>
+        <span>Chat LLM</span>
+      </a>
+      <a href="troupeau.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">pets</span>
+        <span>Troupeau</span>
+      </a>
+      <a href="sante.html" class="nav-link sidebar-link">
+        <span class="material-symbols-outlined">monitor_heart</span>
+        <span>Santé</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- CONTENU PRINCIPAL -->
+  <main class="main-content">
+
+    <!-- Titre page -->
+    <div class="page-header">
+      <h1 class="page-title">Tableau de Bord</h1>
+      <p class="page-subtitle">Vue d'ensemble de votre troupeau</p>
+    </div>
+
+    <!-- 6 cartes stats -->
+    <div class="stats-grid" id="stats">
+      <div class="stat-card">
+        <span class="material-symbols-outlined stat-icon">pets</span>
+        <div class="stat-val" id="s-actifs">—</div>
+        <div class="stat-lbl">Animaux actifs</div>
+      </div>
+      <div class="stat-card">
+        <span class="material-symbols-outlined stat-icon">child_care</span>
+        <div class="stat-val" id="s-gestation">—</div>
+        <div class="stat-lbl">En gestation</div>
+      </div>
+      <div class="stat-card">
+        <span class="material-symbols-outlined stat-icon">notifications</span>
+        <div class="stat-val" id="s-alertes">—</div>
+        <div class="stat-lbl">Alertes actives</div>
+      </div>
+      <div class="stat-card stat-critical">
+        <span class="material-symbols-outlined stat-icon">emergency</span>
+        <div class="stat-val" id="s-critical">—</div>
+        <div class="stat-lbl">Alertes critiques</div>
+      </div>
+      <div class="stat-card">
+        <span class="material-symbols-outlined stat-icon">storefront</span>
+        <div class="stat-val" id="s-ventes">—</div>
+        <div class="stat-lbl">Ventes ce mois</div>
+      </div>
+      <div class="stat-card">
+        <span class="material-symbols-outlined stat-icon">payments</span>
+        <div class="stat-val" id="s-ca">—</div>
+        <div class="stat-lbl">CA mois (FCFA)</div>
+      </div>
+    </div>
+
+    <!-- Ligne du bas : alertes + gestations -->
+    <div class="bottom-grid">
+
+      <!-- Alertes récentes -->
+      <div class="card">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined">warning</span>
+          Alertes récentes
+        </h2>
+        <div id="alertes-list">
+          <p class="loading-text">Chargement...</p>
+        </div>
+      </div>
+
+      <!-- Gestations en cours -->
+      <div class="card">
+        <h2 class="card-title">
+          <span class="material-symbols-outlined">child_care</span>
+          Gestations en cours
+        </h2>
+        <div id="gestations-list">
+          <p class="loading-text">Chargement...</p>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="../js/nav.js"></script>
+  <script src="../js/dashboard.js"></script>
+</body>
+</html>
