@@ -1,4 +1,5 @@
 
+const API_BASE = '/api';
 let tousAnimaux = [];
 let filtreSexe = 'tous';
 let racesData = [];
@@ -82,6 +83,8 @@ function afficherTroupeau(animaux) {
     const gmqColor = gmq < 0.3 ? 'text-rose-600' : (gmq < 0.6 ? 'text-amber-600' : 'text-secondary');
     const sexeIcon = a.sexe === 'M' ? 'male' : 'female';
     const sexeColor = a.sexe === 'M' ? 'text-blue-500' : 'text-pink-500';
+    const rentabilite = a.rentabilite_estimee || 0;
+    const rentColor = rentabilite > 0 ? 'text-secondary' : 'text-rose-600';
 
     return `
       <tr class="group hover:bg-slate-50 transition-colors">
@@ -99,9 +102,13 @@ function afficherTroupeau(animaux) {
           <span class="${gmqColor} font-black text-sm">${gmq > 0 ? '+' : ''}${gmq.toFixed(2)}</span>
         </td>
         <td class="px-6 py-4 text-right">
+          <span class="${rentColor} font-black text-xs">${Number(rentabilite).toLocaleString()} F</span>
+        </td>
+        <td class="px-6 py-4 text-right">
           <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-            <button onclick="ouvrirModal(${a.id}, '${a.numero_tag}')" class="p-2 text-slate-400 hover:text-primary hover:bg-primary-light rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">history</span></button>
-            <button onclick="window.location.href='chat.html'" class="p-2 text-slate-400 hover:text-secondary hover:bg-green-50 rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">smart_toy</span></button>
+            <button onclick="downloadFichePDF(${a.id})" title="Fiche PDF" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">picture_as_pdf</span></button>
+            <button onclick="ouvrirModal(${a.id}, '${a.numero_tag}')" title="Historique" class="p-2 text-slate-400 hover:text-primary hover:bg-primary-light rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">history</span></button>
+            <button onclick="window.location.href='chat.html'" title="IA" class="p-2 text-slate-400 hover:text-secondary hover:bg-green-50 rounded-xl transition-all"><span class="material-symbols-outlined text-[20px]">smart_toy</span></button>
           </div>
         </td>
       </tr>
@@ -109,6 +116,43 @@ function afficherTroupeau(animaux) {
   }).join('');
 
   renderPagination(totalPages);
+}
+
+// ── Nouveaux outils Métier ────────────────────────────────────
+
+window.downloadFichePDF = async (id) => {
+  window.open(`${API_BASE}/animaux/${id}/fiche-pdf`, '_blank');
+};
+
+window.openMilkModal = () => {
+    const modal = document.getElementById('modal-milk');
+    const select = document.getElementById('milk-animal-id');
+    select.innerHTML = tousAnimaux.filter(a => a.sexe === 'F').map(a => `<option value="${a.id}">${a.numero_tag} - ${a.nom || 'Sans nom'}</option>`).join('');
+    modal.style.display = 'flex';
+};
+
+window.closeMilkModal = () => document.getElementById('modal-milk').style.display = 'none';
+
+async function submitMilk(e) {
+    e.preventDefault();
+    const data = {
+        animal_id: document.getElementById('milk-animal-id').value,
+        quantite: document.getElementById('milk-qty').value,
+        periode: document.getElementById('milk-periode').value,
+        date: new Date().toISOString().split('T')[0]
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/production-lait`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        if(res.ok) {
+            showToast("Production de lait enregistrée !");
+            closeMilkModal();
+        }
+    } catch(err) { showToast("Erreur", "error"); }
 }
 
 function renderPagination(total) {

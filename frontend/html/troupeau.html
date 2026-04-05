@@ -140,6 +140,10 @@
         <span class="material-symbols-outlined">monitor_heart</span>
         <span>Santé</span>
       </a>
+      <a href="stocks.html" class="sidebar-link">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span>Stocks</span>
+      </a>
       <a href="reports.html" class="sidebar-link">
         <span class="material-symbols-outlined">analytics</span>
         <span>Rapports</span>
@@ -181,6 +185,10 @@
         <button onclick="exportCSV()" class="flex items-center gap-2 px-5 py-2.5 bg-white text-primary border border-outline rounded-xl font-bold transition-all hover:bg-primary-light shadow-sm">
           <span class="material-symbols-outlined text-lg">file_download</span>
           Exporter CSV
+        </button>
+        <button onclick="openMilkModal()" class="flex items-center gap-2 px-5 py-2.5 bg-white text-secondary border border-secondary/20 rounded-xl font-bold transition-all hover:bg-green-50 shadow-sm">
+          <span class="material-symbols-outlined text-lg">water_drop</span>
+          Saisie Lait
         </button>
         <button onclick="openAddModal()" class="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all">
           <span class="material-symbols-outlined text-lg">add_circle</span>
@@ -239,17 +247,19 @@
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nom</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Race</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sexe</th>
-              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Âge (mois)</th>
-              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Poids Actuel</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Âge</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Poids</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">GMQ</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Rentabilité</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline" id="troupeau-body">
-            <tr><td colspan="8" class="p-12 text-center text-slate-400 font-medium italic">Chargement des données...</td></tr>
+            <tr><td colspan="9" class="p-12 text-center text-slate-400 font-medium italic">Chargement des données...</td></tr>
           </tbody>
         </table>
       </div>
+
       
       <!-- Pagination footer -->
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between text-sm border-t border-outline">
@@ -387,6 +397,40 @@
       <div class="p-6 bg-slate-50 border-t border-outline rounded-b-3xl">
         <button onclick="fermerModal()" class="w-full py-3 bg-primary text-white font-black rounded-xl text-xs shadow-lg active:scale-95 transition-all uppercase">Fermer</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL SAISIE LAIT -->
+  <div id="modal-milk" class="modal-overlay" onclick="closeMilkModal(event)">
+    <div class="modal-content max-w-sm" onclick="event.stopPropagation()">
+      <div class="p-6 border-b border-outline flex justify-between items-center bg-green-50">
+        <h4 class="font-black text-secondary uppercase text-sm tracking-widest flex items-center gap-2">
+          <span class="material-symbols-outlined">water_drop</span> Saisie de Traite
+        </h4>
+        <button onclick="closeMilkModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <form id="form-milk" class="p-6 space-y-4" onsubmit="submitMilk(event)">
+        <div>
+          <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Vache Laitière</label>
+          <select id="milk-animal-id" required class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20 outline-none"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Quantité (Litres)</label>
+            <input type="number" id="milk-qty" step="0.1" required class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20 outline-none">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Période</label>
+            <select id="milk-periode" class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20 outline-none">
+              <option value="matin">Matin</option>
+              <option value="soir">Soir</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="w-full py-3 bg-secondary text-white font-black rounded-xl text-xs shadow-lg active:scale-95 transition-all uppercase mt-4">Enregistrer la traite</button>
+      </form>
     </div>
   </div>
 

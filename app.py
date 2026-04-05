@@ -39,6 +39,8 @@ Tables MySQL :
 - sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv)
 - reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec])
 - alimentation(id, animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
+- production_lait(id, animal_id, date_traite, quantite_litre, periode[matin/soir])
+- stocks(id, nom, categorie[aliment/soin/autre], quantite_disponible, unite, seuil_alerte)
 - ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
 - alertes(id, animal_id, type, message, niveau[info/warning/critical], traitee)
 - historique_statut(id, animal_id, ancien_statut, nouveau_statut, date_changement)
@@ -47,10 +49,12 @@ Fonctions :
 - fn_age_en_mois(animal_id) -> INT
 - fn_gmq(animal_id) -> DECIMAL (gain moyen quotidien en kg/jour)
 - fn_cout_total_elevage(animal_id) -> DECIMAL (somme cumulée alimentation + santé)
+- fn_rentabilite_estimee(animal_id) -> DECIMAL (valeur marchande estimée - coûts)
 
 Procédures disponibles :
 - sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
 - sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa, poids_vente_kg, date_vente)
+- sp_rapport_nutritionnel(animal_id)
 """
 
 def get_system_prompt():
@@ -69,7 +73,8 @@ Réponds exclusivement en JSON pur, sans markdown.
 
 ### BLOC 2 — RÈGLES SQL
 - Filtrer `statut='actif'` par défaut sauf demande explicite.
-- Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)` et `fn_cout_total_elevage(a.id)`.
+- Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)`, `fn_cout_total_elevage(a.id)` et `fn_rentabilite_estimee(a.id)`.
+- Pour le lait, utilise `production_lait`. Pour les stocks, utilise `stocks`.
 - Pour la généalogie, utilise des jointures sur `mere_id` ou `pere_id`. Ex: "Mère de TAG-006" -> `SELECT m.numero_tag FROM animaux a JOIN animaux m ON a.mere_id = m.id WHERE a.numero_tag = 'TAG-006'`.
 - Ne jamais générer de DELETE ou DROP. Limiter à 100 résultats.
 
@@ -88,6 +93,7 @@ IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou un
 - Consultation : Fais une jointure ou un WHERE sur `numero_tag`.
 - Action : Si tu n'as pas l'ID technique (animal_id), retourne un type 'info' demandant de confirmer l'animal ou cherche l'ID via une requête préalable. Ne jamais inventer d'ID.
 """
+
 
 # ── Sécurité ────────────────────────────────────────────────────
 def validate_sql(sql: str):
@@ -679,6 +685,105 @@ def get_animal_genealogie(animal_id: int):
         "grand_parents": grand_parents,
         "offspring": offspring
     }
+
+@app.get("/api/animaux/{animal_id}/fiche-pdf")
+def export_animal_fiche_pdf(animal_id: int):
+    # 1. Récupération des données complètes
+    animal_data = execute_query("""
+        SELECT a.*, r.nom as race_nom,
+               m.numero_tag as mere_tag, p.numero_tag as pere_tag,
+               fn_age_en_mois(a.id) as age_mois,
+               fn_gmq(a.id) as gmq,
+               fn_cout_total_elevage(a.id) as cout_total,
+               fn_rentabilite_estimee(a.id) as rentabilite
+        FROM animaux a
+        LEFT JOIN races r ON a.race_id = r.id
+        LEFT JOIN animaux m ON a.mere_id = m.id
+        LEFT JOIN animaux p ON a.pere_id = p.id
+        WHERE a.id = %s
+    """, [animal_id])
+
+    if not animal_data:
+        raise HTTPException(status_code=404, detail="Animal non trouvé")
+    
+    a = animal_data[0]
+    pesees = execute_query("SELECT * FROM pesees WHERE animal_id = %s ORDER BY date_pesee DESC LIMIT 10", [animal_id])
+    actes = execute_query("SELECT * FROM sante WHERE animal_id = %s ORDER BY date_acte DESC LIMIT 10", [animal_id])
+    lait = execute_query("SELECT * FROM production_lait WHERE animal_id = %s ORDER BY date_traite DESC LIMIT 10", [animal_id])
+
+    # 2. Génération du PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Titre
+    elements.append(Paragraph(f"FICHE INDIVIDUELLE : {a['numero_tag']} ({a['nom'] or 'Sans nom'})", styles['Title']))
+    elements.append(Spacer(1, 12))
+
+    # Identité
+    elements.append(Paragraph("<b>1. IDENTITÉ ET GÉNÉALOGIE</b>", styles['Heading2']))
+    identite_data = [
+        ["Race", a['race_nom'] or "Inconnue", "Sexe", a['sexe']],
+        ["Né le", a['date_naissance'].strftime('%d/%m/%Y'), "Âge", f"{a['age_mois']} mois"],
+        ["Statut", a['statut'].upper(), "Poids actuel", f"{a['poids_actuel']} kg"],
+        ["Mère", a['mere_tag'] or "Inconnue", "Père", a['pere_tag'] or "Inconnu"]
+    ]
+    t_id = Table(identite_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+    t_id.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (0,-1), colors.whitesmoke), ('BACKGROUND', (2,0), (2,-1), colors.whitesmoke)]))
+    elements.append(t_id)
+    elements.append(Spacer(1, 12))
+
+    # Performance
+    elements.append(Paragraph("<b>2. ANALYSE DE PERFORMANCE ET RENTABILITÉ</b>", styles['Heading2']))
+    perf_data = [
+        ["GMQ Global", f"{a['gmq'] or 0} kg/j"],
+        ["Coût total d'élevage", f"{int(a['cout_total'] or 0)} FCFA"],
+        ["Rentabilité estimée", f"{int(a['rentabilite'] or 0)} FCFA"]
+    ]
+    t_perf = Table(perf_data, colWidths=[2.5*inch, 3.5*inch])
+    t_perf.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')]))
+    elements.append(t_perf)
+    elements.append(Spacer(1, 12))
+
+    # Santé (Tableau)
+    elements.append(Paragraph("<b>3. DERNIERS ACTES VÉTÉRINAIRES</b>", styles['Heading2']))
+    if actes:
+        s_data = [["Date", "Type", "Description", "Coût"]]
+        for s in actes: s_data.append([s['date_acte'].strftime('%d/%m/%y'), s['type'], (s['description'][:30]+'...') if len(s['description'])>30 else s['description'], f"{int(s['cout'])} F"])
+        ts = Table(s_data, colWidths=[1*inch, 1.5*inch, 2.5*inch, 1*inch])
+        ts.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0), colors.HexColor("#3b82f6")), ('TEXTCOLOR',(0,0),(-1,0), colors.whitesmoke), ('GRID',(0,0),(-1,-1), 0.5, colors.grey)]))
+        elements.append(ts)
+    else:
+        elements.append(Paragraph("Aucun acte enregistré.", styles['Normal']))
+
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph("Document généré par l'IA BoviBot — Rapport certifié", styles['Italic']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=fiche_{a['numero_tag']}.pdf"})
+
+@app.get("/api/stocks")
+def get_stocks():
+    return execute_query("SELECT * FROM stocks ORDER BY categorie, nom")
+
+@app.post("/api/production-lait")
+def record_milk(data: dict):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO production_lait (animal_id, date_traite, quantite_litre, periode) VALUES (%s, %s, %s, %s)",
+            (data['animal_id'], data['date'], data['quantite'], data['periode'])
+        )
+        conn.commit()
+        return {"success": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        cursor.close(); conn.close()
 
 @app.get("/health")
 def health():
