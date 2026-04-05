@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html class="light" lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>BoviBot - Suivi Gestation</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#7c4f1e",
+            "primary-dark": "#4a2c00",
+            "primary-light": "#fdf6ec",
+            "secondary": "#16a34a",
+            "background": "#f5f0e8",
+            "surface": "#ffffff",
+            "surface-variant": "#fef9f1",
+            "outline": "#e2e8f0",
+            "on-surface-variant": "#51453a"
+          },
+          fontFamily: {
+            "headline": ["Manrope"],
+            "body": ["Public Sans"]
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+  </style>
+</head>
+<body class="bg-background text-slate-900 font-body antialiased overflow-x-hidden">
+
+  <!-- SideNavBar (Identique à Troupeau) -->
+  <aside class="sidebar fixed inset-y-0 left-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 h-full w-64 bg-surface-variant border-r border-outline flex flex-col shadow-sm">
+    <div class="p-8">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pets</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold text-primary-dark leading-none">BoviBot</h1>
+          <p class="text-[10px] uppercase tracking-widest text-primary mt-1 opacity-70">Herd Management</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-grow px-4 space-y-1 mt-4">
+      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="index.html">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="chat.html">
+        <span class="material-symbols-outlined">smart_toy</span>
+        <span>Assistant IA</span>
+      </a>
+      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="troupeau.html">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Troupeau</span>
+      </a>
+      <a class="flex items-center gap-3 bg-primary text-white rounded-xl px-4 py-3 shadow-md font-bold" href="gestation.html">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">child_care</span>
+        <span>Gestation</span>
+      </a>
+      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="sante.html">
+        <span class="material-symbols-outlined">monitor_heart</span>
+        <span>Santé</span>
+      </a>
+    </nav>
+
+    <div class="p-6 mt-auto">
+      <div class="bg-primary-light rounded-2xl p-4 border border-primary/20">
+        <p class="text-[10px] text-primary font-black uppercase mb-2">Support Technique</p>
+        <button class="w-full py-3 bg-primary text-white rounded-xl font-bold text-xs shadow-lg active:scale-95 transition-all">Aide & Contact</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="md:ml-64 min-h-screen p-6 lg:p-10">
+    <header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div class="flex items-center gap-4">
+        <button id="hamburger-btn" class="hamburger-btn">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div>
+          <h2 class="font-headline text-4xl font-black text-primary-dark tracking-tight mb-2">Suivi de Reproduction</h2>
+          <p class="text-on-surface-variant font-medium">Gestion des saillies, gestations et prévisions de vêlage.</p>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="window.location.href='chat.html'" class="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all">
+          <span class="material-symbols-outlined text-lg">psychology</span>
+          Conseil IA Reproduction
+        </button>
+      </div>
+    </header>
+
+    <!-- Reproduction Table -->
+    <div class="bg-white rounded-2xl overflow-hidden shadow-sm border border-outline">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-outline">
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Mère (Vache)</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Père (Taureau)</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Date Saillie</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Vêlage Prévu</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">État</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline" id="gestation-table-body">
+            <tr><td colspan="6" class="p-12 text-center text-slate-400 font-medium italic">Chargement du registre...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="px-6 py-4 bg-slate-50 flex items-center justify-between text-xs border-t border-outline">
+        <p class="text-slate-500 font-bold">Total : <span id="count-gestations" class="text-primary-dark">0</span> gestations actives</p>
+      </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+      <div class="bg-white border border-outline p-6 rounded-3xl flex flex-col items-center text-center shadow-sm">
+        <span class="material-symbols-outlined text-4xl text-secondary mb-3">child_care</span>
+        <span class="text-3xl font-black text-primary-dark mb-1" id="stat-imminent">0</span>
+        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vêlages Imminents (< 15j)</span>
+      </div>
+      <div class="bg-white border border-outline p-6 rounded-3xl flex flex-col items-center text-center shadow-sm">
+        <span class="material-symbols-outlined text-4xl text-primary mb-3">event_repeat</span>
+        <span class="text-3xl font-black text-primary-dark mb-1" id="stat-total-gest">0</span>
+        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total en Gestation</span>
+      </div>
+      <div class="bg-white border border-outline p-6 rounded-3xl flex flex-col items-center text-center shadow-sm">
+        <span class="material-symbols-outlined text-4xl text-primary mb-3">auto_awesome</span>
+        <span class="text-3xl font-black text-primary-dark mb-1">92%</span>
+        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Taux de Réussite Saillies</span>
+      </div>
+    </div>
+  </main>
+
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+  <script src="../js/nav.js"></script>
+  <script>
+    async function loadGestation() {
+      try {
+        const res = await fetch('/api/reproduction/en-cours');
+        const data = await res.json();
+        const body = document.getElementById('gestation-table-body');
+        document.getElementById('count-gestations').textContent = data.length;
+        document.getElementById('stat-total-gest').textContent = data.length;
+        document.getElementById('stat-imminent').textContent = data.filter(r => r.jours_restants < 15).length;
+        
+        if (data.length === 0) {
+          body.innerHTML = '<tr><td colspan="6" class="p-12 text-center text-slate-400 italic">Aucune gestation en cours.</td></tr>';
+          return;
+        }
+
+        body.innerHTML = data.map(r => {
+          const j = r.jours_restants;
+          const statusColor = j < 15 ? 'text-red-600' : (j < 30 ? 'text-orange-600' : 'text-primary');
+          const badgeColor = j < 15 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-primary-light text-primary border-primary/10';
+
+          return `
+            <tr class="group hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-primary-light border border-primary/10 flex items-center justify-center text-primary font-black text-xs">
+                    ${r.mere_tag.slice(-2)}
+                  </div>
+                  <div>
+                    <span class="font-black text-primary-dark">${r.mere_tag}</span>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase">${r.mere_nom || '—'}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5 text-center text-slate-500 font-bold text-sm">${r.pere_tag}</td>
+              <td class="px-6 py-5 text-center text-slate-400 text-xs font-medium">${new Date(r.date_saillie).toLocaleDateString('fr-FR')}</td>
+              <td class="px-6 py-5 text-center font-black text-slate-700 text-sm">${new Date(r.date_velage_prevue).toLocaleDateString('fr-FR')}</td>
+              <td class="px-6 py-5 text-right font-black ${statusColor} text-lg">J-${j}</td>
+              <td class="px-6 py-5 text-right">
+                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase border ${badgeColor}">
+                  ${j < 15 ? 'Imminent' : 'En Gestation'}
+                </span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        document.getElementById('gestation-table-body').innerHTML = '<tr><td colspan="6" class="p-12 text-center text-red-500 font-bold">Erreur de chargement.</td></tr>';
+      }
+    }
+    document.addEventListener('DOMContentLoaded', loadGestation);
+  </script>
+</body>
+</html>

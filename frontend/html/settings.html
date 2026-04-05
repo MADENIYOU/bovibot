@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html class="light" lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>BoviBot - Paramètres Système</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#7c4f1e",
+            "primary-dark": "#4a2c00",
+            "secondary": "#16a34a",
+            "background": "#f5f0e8",
+            "surface": "#ffffff",
+            "outline": "#e2e8f0"
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    .toast {
+      position: fixed; bottom: 2rem; right: 2rem; padding: 1rem 1.5rem; background: white;
+      border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid var(--color-outline);
+      display: flex; align-items: center; gap: 0.75rem; transform: translateY(150%);
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000;
+    }
+    .toast.active { transform: translateY(0); }
+  </style>
+</head>
+<body class="bg-background text-slate-900 font-body antialiased">
+
+  <div id="custom-toast" class="toast">
+    <div class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-white">
+      <span class="material-symbols-outlined">check</span>
+    </div>
+    <div>
+      <p class="text-[10px] font-black text-primary-dark uppercase tracking-widest leading-none mb-1">Configuration</p>
+      <p class="text-sm font-bold text-slate-500" id="toast-message">Modifications enregistrées</p>
+    </div>
+  </div>
+
+  <aside class="sidebar fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-outline flex flex-col shadow-sm">
+    <div class="p-8">
+      <h1 class="text-xl font-black text-primary-dark">BoviBot</h1>
+      <p class="text-[10px] uppercase font-bold text-primary opacity-70">System Settings</p>
+    </div>
+    <nav class="flex-grow px-4 space-y-1">
+      <a href="index.html" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl font-bold text-slate-500 hover:text-primary transition-all">
+        <span class="material-symbols-outlined">dashboard</span> Dashboard
+      </a>
+      <a href="chat.html" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl font-bold text-slate-500 hover:text-primary transition-all">
+        <span class="material-symbols-outlined">smart_toy</span> Assistant IA
+      </a>
+      <a href="troupeau.html" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl font-bold text-slate-500 hover:text-primary transition-all">
+        <span class="material-symbols-outlined">groups</span> Troupeau
+      </a>
+      <a href="gestation.html" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl font-bold text-slate-500 hover:text-primary transition-all">
+        <span class="material-symbols-outlined">child_care</span> Gestation
+      </a>
+      <a href="sante.html" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl font-bold text-slate-500 hover:text-primary transition-all">
+        <span class="material-symbols-outlined">monitor_heart</span> Santé
+      </a>
+      <a href="reports.html" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-xl font-bold text-slate-500 hover:text-primary transition-all">
+        <span class="material-symbols-outlined">analytics</span> Rapports
+      </a>
+      <a href="settings.html" class="flex items-center gap-3 px-4 py-3 bg-primary text-white rounded-xl font-bold shadow-md">
+        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span> Paramètres
+      </a>
+    </nav>
+  </aside>
+
+  <main class="md:ml-64 p-10 min-h-screen">
+    <header class="mb-10 flex items-center gap-4">
+      <button id="hamburger-btn" class="hamburger-btn">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
+      <div>
+        <h2 class="text-4xl font-black text-primary-dark tracking-tight mb-2">Paramètres Système</h2>
+        <p class="text-slate-500 font-medium">Configurez votre environnement de travail BoviBot.</p>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      
+      <!-- Farm Profile -->
+      <section class="bg-white p-8 rounded-3xl border border-outline shadow-sm">
+        <h3 class="font-black text-primary-dark uppercase text-xs tracking-widest mb-6">Profil de l'Exploitation</h3>
+        <form id="farm-form" class="space-y-4">
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nom de la Ferme</label>
+            <input type="text" id="farm_name" class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Superviseur Principal</label>
+            <input type="text" id="supervisor" class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
+          </div>
+          <button type="submit" class="bg-primary text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition-all">Mettre à jour le profil</button>
+        </form>
+      </section>
+
+      <!-- AI Config -->
+      <section class="bg-white p-8 rounded-3xl border border-outline shadow-sm">
+        <h3 class="font-black text-primary-dark uppercase text-xs tracking-widest mb-6">Configuration IA</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Modèle LLM Actif</label>
+            <div class="flex items-center gap-3 p-3 bg-slate-50 border border-outline rounded-xl">
+              <span class="material-symbols-outlined text-secondary">model_training</span>
+              <span class="text-sm font-bold text-primary-dark" id="llm_model_display">—</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">État de la Clé API</label>
+            <div class="flex items-center gap-3 p-3 bg-slate-50 border border-outline rounded-xl">
+              <span class="material-symbols-outlined text-secondary">key</span>
+              <span class="text-sm font-bold text-slate-500 italic">••••••••••••••••</span>
+              <span class="ml-auto bg-secondary/10 text-secondary text-[8px] font-black px-2 py-1 rounded-full">VALIDE</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Thresholds -->
+      <section class="bg-white p-8 rounded-3xl border border-outline shadow-sm">
+        <h3 class="font-black text-primary-dark uppercase text-xs tracking-widest mb-6">Seuils d'Alertes</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">GMQ Critique (kg/jour)</label>
+            <input type="range" min="0.1" max="1.0" step="0.1" id="alert_threshold_gmq" class="w-full accent-primary">
+            <div class="flex justify-between text-[10px] font-black text-slate-400">
+              <span>0.1 kg/j</span>
+              <span id="gmq_val" class="text-primary-dark">0.3 kg/j</span>
+              <span>1.0 kg/j</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- System Health -->
+      <section class="bg-primary-light p-8 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl rounded-full"></div>
+        <h3 class="font-black text-primary-dark uppercase text-xs tracking-widest mb-6">Maintenance Système</h3>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-bold text-primary-dark">Base de données</span>
+            <span class="flex items-center gap-2 text-xs font-black text-secondary">
+              <span class="w-2 h-2 bg-secondary rounded-full animate-pulse"></span> CONNECTÉ
+            </span>
+          </div>
+          <button class="w-full py-3 bg-white text-red-600 border border-red-100 rounded-xl font-bold text-xs shadow-sm hover:bg-red-50 transition-all uppercase tracking-widest">
+            Réinitialiser les données de test
+          </button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+  <script src="../js/nav.js"></script>
+  <script src="../js/settings.js"></script>
+</body>
+</html>

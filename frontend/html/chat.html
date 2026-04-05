@@ -1,138 +1,314 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html class="dark" lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BoviBot — Chat LLM</title>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>BoviBot IA — Intelligence Center</title>
   <link rel="stylesheet" href="../css/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Public+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Public+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#7c4f1e",
+            "primary-dark": "#4a2c00",
+            "primary-light": "#fdf6ec",
+            "secondary": "#16a34a",
+            "background": "#f5f0e8",
+            "surface": "#ffffff",
+            "surface-variant": "#fef9f1",
+            "outline": "#e2e8f0"
+          },
+          fontFamily: {
+            "headline": ["Manrope"],
+            "body": ["Public Sans"]
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    
+    /* Sidebar dans le flux flex sur desktop */
+    @media (min-width: 769px) {
+      .sidebar { position: relative !important; top: auto !important; height: 100% !important; }
+    }
+
+    /* Animation typing */
+    .typing span { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; display: inline-block; animation: typing 1.4s infinite both; }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1.2); opacity: 1; } }
+
+    /* Modal Styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background: white;
+      width: 90%;
+      max-width: 1000px;
+      max-height: 85vh;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+    .modal-body { padding: 0; overflow-y: auto; flex: 1; }
+  </style>
 </head>
-<body>
+<body class="bg-background text-slate-900 font-body selection:bg-primary/10 overflow-hidden h-screen">
 
-  <!-- HEADER -->
-  <header class="header">
-    <div class="header-left">
-      <span class="logo">BoviBot</span>
-      <div class="api-status">
-        <span class="api-dot" id="api-status-dot"></span>
-        <span class="api-text" id="api-status-text">Connexion...</span>
-      </div>
-    </div>
-    <nav class="header-nav">
-      <a href="index.html" class="nav-link nav-inactive">Dashboard</a>
-      <a href="chat.html" class="nav-link nav-active">Chat LLM</a>
-      <a href="troupeau.html" class="nav-link nav-inactive">Troupeau</a>
-      <a href="sante.html" class="nav-link nav-inactive">Santé</a>
-    </nav>
-    <div class="header-right">
-      <button class="icon-btn"><span class="material-symbols-outlined">sensors</span></button>
-      <button class="icon-btn"><span class="material-symbols-outlined">settings</span></button>
-    </div>
-  </header>
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <h2>BoviBot</h2>
-      <p>Digital Agrarian Systems</p>
-    </div>
-    <nav class="sidebar-nav">
-      <a href="index.html" class="nav-link sidebar-link">
-        <span class="material-symbols-outlined">dashboard</span>
-        <span>Dashboard</span>
-      </a>
-      <a href="chat.html" class="nav-link sidebar-link sidebar-active">
-        <span class="material-symbols-outlined">smart_toy</span>
-        <span>Chat LLM</span>
-      </a>
-      <a href="troupeau.html" class="nav-link sidebar-link">
-        <span class="material-symbols-outlined">pets</span>
-        <span>Troupeau</span>
-      </a>
-      <a href="sante.html" class="nav-link sidebar-link">
-        <span class="material-symbols-outlined">monitor_heart</span>
-        <span>Santé</span>
-      </a>
-    </nav>
-  </aside>
-
-  <!-- CONTENU PRINCIPAL -->
-  <main class="main-content">
-
-    <div class="page-header">
-      <h1 class="page-title">Assistant BoviBot</h1>
-      <p class="page-subtitle">Posez vos questions en langage naturel</p>
-    </div>
-
-    <div class="chat-layout">
-
-      <!-- Zone de chat -->
-      <div class="card chat-card">
-
-        <!-- Suggestions -->
-        <div class="suggestions">
-          <button class="suggestion-btn" onclick="ask('Liste tous les animaux actifs avec leur âge et GMQ')">
-            <span class="material-symbols-outlined">pets</span> Troupeau complet
-          </button>
-          <button class="suggestion-btn" onclick="ask('Quels animaux ont un GMQ inférieur à 0.3 kg/jour ?')">
-            <span class="material-symbols-outlined">trending_down</span> GMQ faibles
-          </button>
-          <button class="suggestion-btn" onclick="ask('Quelles femelles sont en gestation et quand vêlent-elles ?')">
-            <span class="material-symbols-outlined">child_care</span> Gestations
-          </button>
-          <button class="suggestion-btn" onclick="ask('Quels animaux n\'ont pas été vaccinés depuis 6 mois ?')">
-            <span class="material-symbols-outlined">vaccines</span> Vaccinations
-          </button>
-          <button class="suggestion-btn" onclick="ask('Enregistre une pesée de 325 kg pour TAG-001 aujourd\'hui')">
-            <span class="material-symbols-outlined">scale</span> Saisir pesée
-          </button>
-          <button class="suggestion-btn" onclick="ask('Quel est le coût total d\'alimentation ce mois-ci ?')">
-            <span class="material-symbols-outlined">payments</span> Coût alim.
-          </button>
-        </div>
-
-        <!-- Messages -->
-        <div class="chat-box" id="chat-box">
-          <div class="msg bot">
-            <div class="msg-avatar">
-              <span class="material-symbols-outlined">smart_toy</span>
-            </div>
-            <div class="bubble">
-              🐄 Bonjour ! Je suis BoviBot.<br>
-              Posez vos questions sur votre troupeau ou demandez-moi d'enregistrer une pesée, une vente...
-            </div>
+  <!-- Layout Wrapper -->
+  <div class="flex h-full">
+    
+    <!-- SIDEBAR (Style Sample) -->
+    <aside class="sidebar w-72 border-r border-outline bg-surface-variant flex flex-col z-40">
+      <div class="p-8">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pets</span>
+          </div>
+          <div>
+            <h1 class="text-xl font-extrabold text-primary-dark leading-none">BoviBot</h1>
+            <p class="text-[10px] uppercase tracking-widest text-primary mt-1 opacity-70">IA Command</p>
           </div>
         </div>
+      </div>
 
-        <!-- Input -->
-        <div class="chat-input">
-          <input
-            type="text"
-            id="user-input"
-            placeholder="Ex: Quel animal a le meilleur GMQ ce mois ?"
-            onkeypress="if(event.key==='Enter') sendMessage()"
-          >
-          <button onclick="sendMessage()" class="btn-send">
-            <span class="material-symbols-outlined">send</span>
-            Envoyer
-          </button>
+      <nav class="flex-1 px-4 space-y-1 mt-4">
+        <a href="index.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+          <span class="material-symbols-outlined">dashboard</span>
+          <span class="text-sm font-bold">Dashboard</span>
+        </a>
+        <a href="chat.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-white text-primary shadow-sm border border-outline font-bold">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">psychology</span>
+          <span class="text-sm">Assistant IA</span>
+        </a>
+        <a href="troupeau.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+          <span class="material-symbols-outlined">groups</span>
+          <span class="text-sm font-bold">Troupeau</span>
+        </a>
+        <a href="gestation.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+          <span class="material-symbols-outlined">child_care</span>
+          <span class="text-sm font-bold">Gestation</span>
+        </a>
+        <a href="sante.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+          <span class="material-symbols-outlined">monitor_heart</span>
+          <span class="text-sm font-bold">Santé</span>
+        </a>
+      </nav>
+
+      <div class="p-6 mt-auto">
+        <div class="bg-primary-light rounded-2xl p-4 border border-primary/20">
+          <p class="text-[10px] text-primary font-black uppercase mb-2">Statut Système</p>
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+            <span class="text-xs font-bold text-primary-dark">Connecté à MySQL</span>
+          </div>
         </div>
-
       </div>
+    </aside>
 
-      <!-- Zone résultats -->
-      <div id="results-section" class="card results-card" style="display:none">
-        <h2 class="card-title">
-          <span class="material-symbols-outlined">table_view</span>
-          Résultats
-        </h2>
-        <div class="results" id="results-table"></div>
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col relative min-w-0">
+      
+      <!-- Top Bar -->
+      <header class="h-16 border-b border-outline bg-white/50 backdrop-blur-md flex items-center justify-between px-8 z-30">
+        <div class="flex items-center gap-4">
+          <button id="hamburger-btn" class="hamburger-btn">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <h2 class="text-sm font-bold text-primary-dark flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-lg">chat_bubble</span>
+            Session de conseil
+          </h2>
+        </div>
+        <div class="flex items-center gap-4">
+          <button id="toggle-data-btn" onclick="togglePlayground()" class="lg:hidden flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold transition-all active:scale-95">
+            <span class="material-symbols-outlined text-sm">terminal</span>
+            Analyses
+          </button>
+          <button class="hidden md:flex text-xs font-bold text-slate-400 hover:text-primary transition-colors items-center gap-1" onclick="window.location.reload()">
+            <span class="material-symbols-outlined text-lg">delete_sweep</span>
+            Effacer
+          </button>
+          <div class="hidden md:block h-8 w-[1px] bg-outline mx-2"></div>
+          <img src="https://ui-avatars.com/api/?name=Admin+Bovi&background=7c4f1e&color=fff" class="w-8 h-8 rounded-full border border-outline shadow-sm">
+        </div>
+      </header>
+
+      <!-- Chat Core -->
+      <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Left: Chat Messages -->
+        <section class="flex-1 flex flex-col bg-slate-50/50 relative">
+          <div class="flex-1 overflow-y-auto" id="chat-box">
+            <div class="max-w-3xl mx-auto px-4 md:px-8 py-4 md:py-8 space-y-6 md:space-y-8" id="messages-inner">
+              <!-- Messages injectés ici -->
+              <div class="flex justify-center">
+                <span class="px-3 py-1 bg-white border border-outline rounded-full text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Aujourd'hui</span>
+              </div>
+
+              <div class="flex gap-3 md:gap-4">
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 text-white shadow-md">
+                  <span class="material-symbols-outlined text-sm md:text-base" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+                </div>
+                <div class="space-y-4">
+                  <div class="p-4 md:p-5 bg-white text-slate-700 rounded-2xl rounded-tl-none shadow-sm border border-outline leading-relaxed text-sm">
+                    Bonjour ! Je suis BoviBot. Je peux analyser votre troupeau, enregistrer des pesées ou gérer les ventes. Comment puis-je vous aider ?
+                  </div>
+                  <div class="flex gap-2 flex-wrap" id="suggestions">
+                    <button onclick="ask('Liste les animaux actifs')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Liste les animaux actifs</button>
+                    <button onclick="ask('Top 5 GMQ')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Meilleurs GMQ</button>
+                    <button onclick="ask('Alertes de santé')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Alertes de santé</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input Area -->
+          <div class="p-4 md:p-6 bg-white border-t border-outline">
+            <div class="max-w-4xl mx-auto relative group">
+              <textarea id="user-input" class="w-full bg-slate-50 border border-outline rounded-2xl py-3 md:py-4 pl-4 md:pl-6 pr-14 md:pr-16 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-slate-400 resize-none transition-all" placeholder="Posez une question..." rows="1"></textarea>
+              <button id="btn-send" onclick="sendMessage()" class="absolute right-2 md:right-3 bottom-2 md:bottom-3 w-10 h-10 flex items-center justify-center rounded-xl bg-primary text-white shadow-lg shadow-primary/20 active:scale-90 transition-all hover:bg-primary-dark">
+                <span class="material-symbols-outlined">send</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Data Playground -->
+        <aside id="data-playground" class="fixed inset-y-0 right-0 w-[85%] max-w-[450px] translate-x-full lg:translate-x-0 lg:static lg:w-[450px] lg:flex flex flex-col bg-white border-l border-outline z-[60] lg:z-auto transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
+          <div class="p-6 border-b border-outline flex items-center justify-between bg-surface-variant/50">
+            <div class="flex items-center gap-2 text-primary-dark">
+              <span class="material-symbols-outlined text-secondary">terminal</span>
+              <h2 class="font-bold text-sm">Data Playground</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="togglePlayground()" class="lg:hidden w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+              <button onclick="copySQL()" class="hidden sm:flex px-3 py-1.5 bg-white hover:bg-primary-light rounded-lg text-[11px] font-black text-primary items-center gap-2 transition-all border border-outline shadow-sm">
+                <span class="material-symbols-outlined text-[14px]">content_copy</span>
+                COPIER
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <!-- SQL Section -->
+            <div class="space-y-3">
+              <label class="text-[10px] uppercase font-black text-slate-400 tracking-wider">Requête SQL générée</label>
+              <div class="p-4 bg-slate-900 rounded-xl border border-slate-800 shadow-inner relative group min-h-[100px]">
+                <div class="absolute top-0 right-0 w-16 h-16 bg-primary/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <code id="sql-display" class="font-mono text-[12px] leading-relaxed text-emerald-400 whitespace-pre-wrap">-- En attente d'une requête...</code>
+              </div>
+            </div>
+
+            <!-- Table Section -->
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <label class="text-[10px] uppercase font-black text-slate-400 tracking-wider">Résultats Bruts</label>
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+                  <span id="result-count" class="text-[10px] text-secondary font-bold uppercase">Live Feed</span>
+                </div>
+              </div>
+              <div class="bg-white rounded-xl overflow-hidden border border-outline shadow-sm overflow-x-auto" id="results-container">
+                <table class="w-full text-[12px] text-left">
+                  <thead class="bg-slate-50 border-b border-outline text-slate-500">
+                    <tr id="table-head">
+                      <th class="p-3 font-bold">...</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-outline" id="results-table-body">
+                    <tr><td class="p-8 text-center text-slate-400">Posez une question pour voir les données</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Bento Stats -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-4 bg-surface-variant rounded-2xl border border-outline flex flex-col gap-2 shadow-sm">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Efficacité</span>
+                <div class="text-2xl font-extrabold text-secondary" id="stat-efficiency">98.5%</div>
+                <div class="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                  <div class="bg-secondary h-full" style="width: 98.5%"></div>
+                </div>
+              </div>
+              <div class="p-4 bg-surface-variant rounded-2xl border border-outline flex flex-col gap-2 shadow-sm">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Optimisation</span>
+                <div class="text-2xl font-extrabold text-primary" id="stat-opti">+14.2%</div>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">vs mois dernier</span>
+              </div>
+            </div>
+
+            <!-- AI Insight Card -->
+            <div class="p-5 bg-gradient-to-br from-primary/5 to-transparent rounded-2xl border border-primary/10 relative overflow-hidden group">
+              <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <span class="material-symbols-outlined text-primary text-4xl">auto_awesome</span>
+              </div>
+              <h4 class="text-xs font-black text-primary mb-2 flex items-center gap-2 uppercase tracking-tight">
+                <span class="material-symbols-outlined text-[16px]">lightbulb</span>
+                Analyse Assistant
+              </h4>
+              <p id="ai-insight" class="text-[11px] leading-relaxed text-slate-600 font-medium">
+                En attente de données pour générer des insights stratégiques sur votre élevage.
+              </p>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="p-6 border-t border-outline bg-slate-50">
+            <button onclick="exportCSV()" class="w-full py-3 bg-white hover:bg-primary-light border border-outline rounded-xl text-xs font-bold text-slate-600 transition-all shadow-sm flex items-center justify-center gap-3">
+              <span class="material-symbols-outlined text-[18px]">file_download</span>
+              EXPORTER LES DONNÉES (CSV)
+            </button>
+          </div>
+        </aside>
       </div>
+    </main>
+  </div>
 
+  <!-- Background Glows -->
+  <div class="fixed top-[-10%] right-[-5%] w-[40%] h-[40%] bg-primary/5 blur-[120px] rounded-full pointer-events-none -z-10"></div>
+  <div class="fixed bottom-[-10%] left-[-5%] w-[30%] h-[30%] bg-secondary/5 blur-[100px] rounded-full pointer-events-none -z-10"></div>
+
+  <div id="ai-modal" class="modal-overlay" onclick="closeAIModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="p-6 border-b border-outline flex justify-between items-center">
+        <h3 class="font-extrabold text-primary-dark">Résultats complets de l'analyse</h3>
+        <button onclick="closeAIModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-table-container">
+        <!-- Tableau complet ici -->
+      </div>
     </div>
+  </div>
 
-  </main>
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
   <script src="../js/nav.js"></script>
   <script src="../js/chat.js"></script>
