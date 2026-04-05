@@ -294,17 +294,21 @@ def dashboard():
     return stats
 
 @app.get("/api/stats/poids-mensuel")
-def get_poids_mensuel():
-    # Calcule le poids moyen par mois sur les 6 derniers mois
+def get_poids_mensuel(days: int = 30):
+    # On ancre la recherche sur la date de la dernière pesée enregistrée
+    # pour éviter d'avoir un graphique vide si aucune donnée n'est récente
+    last_date_res = execute_query("SELECT MAX(date_pesee) as last_date FROM pesees")
+    anchor_date = last_date_res[0]['last_date'] if last_date_res and last_date_res[0]['last_date'] else datetime.now().date()
+
     return execute_query("""
-        SELECT DATE_FORMAT(date_pesee, '%Y-%m') as tri, 
-               DATE_FORMAT(date_pesee, '%b') as mois, 
+        SELECT DATE_FORMAT(date_pesee, '%Y-%m-%d') as tri, 
+               DATE_FORMAT(date_pesee, '%d/%m') as jour, 
                ROUND(AVG(poids_kg), 1) as poids
         FROM pesees
-        WHERE date_pesee >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-        GROUP BY tri, mois
+        WHERE date_pesee >= DATE_SUB(%s, INTERVAL %s DAY)
+        GROUP BY tri, jour
         ORDER BY tri ASC
-    """)
+    """, [anchor_date, days])
 
 @app.get("/api/stats/sante-repartition")
 def get_sante_repartition():
@@ -600,6 +604,46 @@ def export_full_report_pdf(payload: PDFPayload):
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=bilan_visuel_bovibot.pdf"})
 
+class AnalysisPDFPayload(BaseModel):
+    title: str
+    content: str
+
+@app.post("/api/ai-analysis/pdf")
+def export_analysis_text_pdf(payload: AnalysisPDFPayload):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Styles personnalisés
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor("#7c4f1e"), spaceAfter=30, alignment=0)
+    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=11, leading=16, textColor=colors.black)
+    centered_style = ParagraphStyle('CenteredStyle', parent=styles['Normal'], alignment=1)
+    
+    # En-tête
+    elements.append(Paragraph(f"BOVIBOT AI — {payload.title.upper()}", title_style))
+    elements.append(Paragraph(f"Date du rapport : {datetime.now().strftime('%d/%m/%Y à %H:%M')}", styles['Italic']))
+    elements.append(Spacer(1, 20))
+    
+    # Nettoyage du contenu HTML pour ReportLab (conversion basique)
+    # ReportLab supporte <b>, <i>, <u>, <br/>, <link>, etc.
+    text = payload.content
+    text = text.replace('<br>', '<br/>')
+    text = text.replace('<strong class="text-primary-dark font-black uppercase text-xs block mt-4 mb-2 tracking-widest">', '<br/><br/><b>')
+    text = text.replace('</strong>', '</b>')
+    text = text.replace('<li class="ml-4 list-disc text-slate-600 mb-1">', ' • ')
+    text = text.replace('</li>', '<br/>')
+    
+    # On enlève les autres tags HTML potentiels
+    clean_text = re.sub(r'<[^>]+>', '', text) if '<b>' not in text else text
+    
+    elements.append(Paragraph(text, body_style))
+    elements.append(Spacer(1, 40))
+    elements.append(Paragraph("--- Fin du rapport stratégique ---", centered_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=analyse_strategique_bovibot.pdf"})
 
 
 @app.get("/api/animaux/{animal_id}/genealogie")
