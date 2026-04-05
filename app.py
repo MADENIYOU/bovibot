@@ -654,9 +654,10 @@ def export_analysis_text_pdf(payload: AnalysisPDFPayload):
 
 @app.get("/api/animaux/{animal_id}/genealogie")
 def get_animal_genealogie(animal_id: int):
-    # 1. L'animal et ses parents
+    # 1. L'animal et ses parents avec stats
     root = execute_query("""
         SELECT a.id, a.numero_tag, a.nom, a.sexe, a.mere_id, a.pere_id,
+               fn_gmq(a.id) as gmq, fn_rentabilite_estimee(a.id) as rentabilite,
                m.numero_tag as mere_tag, m.nom as mere_nom, m.mere_id as grand_mere_mat_id, m.pere_id as grand_pere_mat_id,
                p.numero_tag as pere_tag, p.nom as pere_nom, p.mere_id as grand_mere_pat_id, p.pere_id as grand_pere_pat_id
         FROM animaux a
@@ -668,15 +669,19 @@ def get_animal_genealogie(animal_id: int):
     if not root: return {"error": "Animal non trouvé"}
     animal = root[0]
 
-    # 2. Grands-parents (Jointure pour les noms/tags)
+    # 2. Grands-parents avec stats
     grand_parents = execute_query("""
-        SELECT id, numero_tag, nom, sexe FROM animaux 
+        SELECT id, numero_tag, nom, sexe, mere_id, pere_id,
+               fn_gmq(id) as gmq, fn_rentabilite_estimee(id) as rentabilite 
+        FROM animaux 
         WHERE id IN (%s, %s, %s, %s)
     """, [animal['grand_mere_mat_id'], animal['grand_pere_mat_id'], animal['grand_mere_pat_id'], animal['grand_pere_pat_id']])
 
-    # 3. Enfants
+    # 3. Enfants avec stats
     offspring = execute_query("""
-        SELECT id, numero_tag, nom, sexe FROM animaux 
+        SELECT id, numero_tag, nom, sexe, mere_id, pere_id,
+               fn_gmq(id) as gmq, fn_rentabilite_estimee(id) as rentabilite 
+        FROM animaux 
         WHERE mere_id = %s OR pere_id = %s
     """, [animal_id, animal_id])
 
