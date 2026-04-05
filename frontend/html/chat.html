@@ -38,6 +38,11 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     
+    /* Sidebar dans le flux flex sur desktop */
+    @media (min-width: 769px) {
+      .sidebar { position: relative !important; top: auto !important; height: 100% !important; }
+    }
+
     /* Animation typing */
     .typing span { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; display: inline-block; animation: typing 1.4s infinite both; }
     .typing span:nth-child(2) { animation-delay: 0.2s; }
@@ -155,24 +160,26 @@
         
         <!-- Left: Chat Messages -->
         <section class="flex-1 flex flex-col bg-slate-50/50 relative">
-          <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8" id="chat-box">
-            <!-- Messages injectés ici -->
-            <div class="flex justify-center">
-              <span class="px-3 py-1 bg-white border border-outline rounded-full text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Aujourd'hui</span>
-            </div>
-            
-            <div class="flex gap-3 md:gap-4 max-w-2xl">
-              <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 text-white shadow-md">
-                <span class="material-symbols-outlined text-sm md:text-base" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+          <div class="flex-1 overflow-y-auto" id="chat-box">
+            <div class="max-w-3xl mx-auto px-4 md:px-8 py-4 md:py-8 space-y-6 md:space-y-8" id="messages-inner">
+              <!-- Messages injectés ici -->
+              <div class="flex justify-center">
+                <span class="px-3 py-1 bg-white border border-outline rounded-full text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Aujourd'hui</span>
               </div>
-              <div class="space-y-4">
-                <div class="p-4 md:p-5 bg-white text-slate-700 rounded-2xl rounded-tl-none shadow-sm border border-outline leading-relaxed text-sm">
-                  Bonjour ! Je suis BoviBot. Je peux analyser votre troupeau, enregistrer des pesées ou gérer les ventes. Comment puis-je vous aider ?
+
+              <div class="flex gap-3 md:gap-4">
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 text-white shadow-md">
+                  <span class="material-symbols-outlined text-sm md:text-base" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
                 </div>
-                <div class="flex gap-2 flex-wrap" id="suggestions">
-                  <button onclick="ask('Liste les animaux actifs')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Liste les animaux actifs</button>
-                  <button onclick="ask('Top 5 GMQ')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Meilleurs GMQ</button>
-                  <button onclick="ask('Alertes de santé')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Alertes de santé</button>
+                <div class="space-y-4">
+                  <div class="p-4 md:p-5 bg-white text-slate-700 rounded-2xl rounded-tl-none shadow-sm border border-outline leading-relaxed text-sm">
+                    Bonjour ! Je suis BoviBot. Je peux analyser votre troupeau, enregistrer des pesées ou gérer les ventes. Comment puis-je vous aider ?
+                  </div>
+                  <div class="flex gap-2 flex-wrap" id="suggestions">
+                    <button onclick="ask('Liste les animaux actifs')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Liste les animaux actifs</button>
+                    <button onclick="ask('Top 5 GMQ')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Meilleurs GMQ</button>
+                    <button onclick="ask('Alertes de santé')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white hover:bg-primary-light border border-outline rounded-full text-[10px] md:text-xs font-bold text-primary transition-all shadow-sm">Alertes de santé</button>
+                  </div>
                 </div>
               </div>
             </div>

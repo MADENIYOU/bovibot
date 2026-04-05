@@ -28,6 +28,7 @@ window.togglePlayground = function() {
 
 // ── Helpers DOM ───────────────────────────────────────────────
 const chatBox      = () => document.getElementById('chat-box');
+const messagesInner = () => document.getElementById('messages-inner');
 const userInput    = () => document.getElementById('user-input');
 const sqlDisplay   = () => document.getElementById('sql-display');
 const tableBody    = () => document.getElementById('results-table-body');
@@ -47,9 +48,9 @@ function scrollChat() {
 
 // ── Ajouter un message dans le chat ──────────────────────────
 function addMessage(role, text, extraClass = '') {
-  const box = chatBox();
+  const box = messagesInner();
   const div = document.createElement('div');
-  div.className = `flex gap-4 ${role === 'user' ? 'max-w-2xl ml-auto flex-row-reverse' : 'max-w-2xl'} ${extraClass}`.trim();
+  div.className = `flex gap-4 ${role === 'user' ? 'ml-auto flex-row-reverse max-w-[85%]' : 'max-w-[85%]'} ${extraClass}`.trim();
   
   const avatarBg = role === 'user' ? 'bg-slate-100 border border-outline' : 'bg-primary text-white shadow-md';
   const bubbleBg = role === 'user' ? 'bg-primary/10 border border-primary/20 shadow-sm' : 'bg-white border border-outline shadow-sm';
@@ -73,10 +74,10 @@ function addMessage(role, text, extraClass = '') {
 
 // ── Indicateur de réflexion ──────────────────────────────────
 function addSpinner() {
-  const box = chatBox();
+  const box = messagesInner();
   const div = document.createElement('div');
   div.id = 'bot-spinner';
-  div.className = 'flex gap-4 max-w-2xl';
+  div.className = 'flex gap-4 max-w-[85%]';
   div.innerHTML = `
     <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 text-white shadow-md">
       <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
