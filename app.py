@@ -10,6 +10,10 @@ from pydantic import BaseModel
 from datetime import datetime
 import mysql.connector
 import os, re, json, httpx
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from fastapi.responses import StreamingResponse
 
 app = FastAPI(title="BoviBot API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -30,7 +34,7 @@ DB_SCHEMA = """
 Tables MySQL :
 - races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
 - animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id, notes, created_at)
-  (Note : numero_tag est l'identifiant unique visible (ex: TAG-001). race_id -> races.id)
+  (Note : numero_tag est l'identifiant unique visible (ex: TAG-001). race_id -> races.id. mere_id et pere_id sont des FK vers animaux.id pour la généalogie.)
 - pesees(id, animal_id, poids_kg, date_pesee, agent, notes)
 - sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv)
 - reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec])
@@ -66,6 +70,7 @@ Réponds exclusivement en JSON pur, sans markdown.
 ### BLOC 2 — RÈGLES SQL
 - Filtrer `statut='actif'` par défaut sauf demande explicite.
 - Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)` et `fn_cout_total_elevage(a.id)`.
+- Pour la généalogie, utilise des jointures sur `mere_id` ou `pere_id`. Ex: "Mère de TAG-006" -> `SELECT m.numero_tag FROM animaux a JOIN animaux m ON a.mere_id = m.id WHERE a.numero_tag = 'TAG-006'`.
 - Ne jamais générer de DELETE ou DROP. Limiter à 100 résultats.
 
 ### BLOC 3 — PROCÉDURES DISPONIBLES
@@ -479,6 +484,157 @@ def get_gestations():
         WHERE r.statut = 'en_gestation'
         ORDER BY r.date_velage_prevue ASC
     """)
+
+# ── Endpoints Bonus ──────────────────────────────────────────
+
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.units import inch
+
+import base64
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image as RLImage
+
+class PDFPayload(BaseModel):
+    charts: dict
+
+@app.post("/api/reports/full/pdf")
+def export_full_report_pdf(payload: PDFPayload):
+    # 1. Collecte des données texte
+    stats = execute_query("SELECT COUNT(*) as total, SUM(CASE WHEN sexe='F' THEN 1 ELSE 0 END) as femelles, SUM(CASE WHEN sexe='M' THEN 1 ELSE 0 END) as males FROM animaux WHERE statut='actif'")[0]
+    gestations = execute_query("SELECT a.numero_tag, r.date_velage_prevue, DATEDIFF(r.date_velage_prevue, CURDATE()) as jours FROM reproduction r JOIN animaux a ON r.mere_id = a.id WHERE r.statut='en_gestation'")
+    sante_rdv = execute_query("SELECT a.numero_tag, s.type, s.prochain_rdv FROM sante s JOIN animaux a ON s.animal_id = a.id WHERE s.prochain_rdv >= CURDATE() ORDER BY s.prochain_rdv ASC")
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Styles
+    header_style = ParagraphStyle('HeaderStyle', parent=styles['Heading1'], fontSize=26, textColor=colors.HexColor("#7c4f1e"), alignment=1)
+    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=12, textColor=colors.grey, alignment=1, spaceAfter=20)
+    section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=16, textColor=colors.HexColor("#5a3a15"), spaceBefore=15, spaceAfter=10, backColor=colors.HexColor("#fdf6ec"), borderPadding=5)
+
+    def get_image(base64_str, width=6.5*inch):
+        if not base64_str: return None
+        header, data = base64_str.split(',')
+        img_data = base64.b64decode(data)
+        img_buffer = BytesIO(img_data)
+        return RLImage(img_buffer, width=width, height=width*0.5)
+
+    # --- PAGE 1 : ANALYSE VISUELLE ---
+    elements.append(Paragraph("BILAN D'EXPLOITATION BOVIBOT", header_style))
+    elements.append(Paragraph(f"Rapport d'analyse dynamique — {datetime.now().strftime('%d/%m/%Y')}", subtitle_style))
+    elements.append(Spacer(1, 0.4*inch))
+
+    # Graphique Finance (Large)
+    elements.append(Paragraph("1. Analyse de la Performance Financière", section_style))
+    img_fin = get_image(payload.charts.get('finance'))
+    if img_fin: elements.append(img_fin)
+    elements.append(Spacer(1, 0.5*inch))
+
+    # Graphique Race (Large)
+    elements.append(Paragraph("2. Croissance par Race (GMQ Moyen)", section_style))
+    img_race = get_image(payload.charts.get('race'))
+    if img_race: elements.append(img_race)
+    
+    # --- PAGE 2 : SANTÉ & RÉPARTITION ---
+    elements.append(PageBreak()) 
+    elements.append(Paragraph("3. Analyse des Coûts Sanitaires", section_style))
+    img_health = get_image(payload.charts.get('health'))
+    if img_health: elements.append(img_health)
+    elements.append(Spacer(1, 0.4*inch))
+
+    elements.append(Paragraph("4. Structure Démographique", section_style))
+    img_demo = get_image(payload.charts.get('demo'), width=4*inch)
+    if img_demo: elements.append(img_demo)
+
+    # --- PAGE 3 : TABLEAUX DÉTAILLÉS ---
+    elements.append(PageBreak())
+    
+    # Style de tableau commun amélioré
+    def get_table_style(main_color, light_color):
+        return TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), main_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e9e2d9")),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_color]),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ])
+
+    elements.append(Paragraph("5. Suivi Sanitaire & Rappels", section_style))
+    if sante_rdv:
+        s_data = [["TAG Animal", "Type d'intervention", "Date de rappel"]]
+        for s in sante_rdv: 
+            s_data.append([s['numero_tag'], s['type'].upper(), s['prochain_rdv'].strftime('%d/%m/%Y')])
+        ts = Table(s_data, colWidths=[1.5*inch, 3*inch, 1.5*inch], repeatRows=1)
+        ts.setStyle(get_table_style(colors.HexColor("#3b82f6"), colors.HexColor("#eff6ff")))
+        elements.append(ts)
+    else:
+        elements.append(Paragraph("Aucun rappel sanitaire en attente.", styles['Normal']))
+
+    elements.append(Spacer(1, 0.4*inch))
+    elements.append(Paragraph("6. État des Gestations en cours", section_style))
+    if gestations:
+        g_data = [["Mère (Tag)", "Vêlage Prévu", "Échéance (Jours)"]]
+        for g in gestations: 
+            g_data.append([g['numero_tag'], g['date_velage_prevue'].strftime('%d/%m/%Y'), f"{g['jours']} j"])
+        tg = Table(g_data, colWidths=[2*inch, 2*inch, 2*inch], repeatRows=1)
+        tg.setStyle(get_table_style(colors.HexColor("#db2777"), colors.HexColor("#fdf2f8")))
+        elements.append(tg)
+    else:
+        elements.append(Paragraph("Aucune gestation enregistrée actuellement.", styles['Normal']))
+
+    elements.append(Spacer(1, 0.6*inch))
+    elements.append(Paragraph("Fin du rapport d'exploitation — Généré par BoviBot AI", styles['Italic']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=bilan_visuel_bovibot.pdf"})
+
+
+
+@app.get("/api/animaux/{animal_id}/genealogie")
+def get_animal_genealogie(animal_id: int):
+    # 1. L'animal et ses parents
+    root = execute_query("""
+        SELECT a.id, a.numero_tag, a.nom, a.sexe, a.mere_id, a.pere_id,
+               m.numero_tag as mere_tag, m.nom as mere_nom, m.mere_id as grand_mere_mat_id, m.pere_id as grand_pere_mat_id,
+               p.numero_tag as pere_tag, p.nom as pere_nom, p.mere_id as grand_mere_pat_id, p.pere_id as grand_pere_pat_id
+        FROM animaux a
+        LEFT JOIN animaux m ON a.mere_id = m.id
+        LEFT JOIN animaux p ON a.pere_id = p.id
+        WHERE a.id = %s
+    """, [animal_id])
+    
+    if not root: return {"error": "Animal non trouvé"}
+    animal = root[0]
+
+    # 2. Grands-parents (Jointure pour les noms/tags)
+    grand_parents = execute_query("""
+        SELECT id, numero_tag, nom, sexe FROM animaux 
+        WHERE id IN (%s, %s, %s, %s)
+    """, [animal['grand_mere_mat_id'], animal['grand_pere_mat_id'], animal['grand_mere_pat_id'], animal['grand_pere_pat_id']])
+
+    # 3. Enfants
+    offspring = execute_query("""
+        SELECT id, numero_tag, nom, sexe FROM animaux 
+        WHERE mere_id = %s OR pere_id = %s
+    """, [animal_id, animal_id])
+
+    return {
+        "animal": animal,
+        "grand_parents": grand_parents,
+        "offspring": offspring
+    }
 
 @app.get("/health")
 def health():

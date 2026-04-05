@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoviBot — Exploration de Lignée</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    :root {
+      --color-primary: #7c4f1e;
+      --color-bg: #fdfaf6;
+      --male-bg: #eff6ff;
+      --male-border: #3b82f6;
+      --female-bg: #fdf2f8;
+      --female-border: #db2777;
+      --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+
+    body { background: var(--color-bg); font-family: 'Manrope', sans-serif; margin: 0; display: flex; }
+    .main-container { margin-left: 280px; padding: 2rem; flex: 1; min-height: 100vh; }
+
+    .tree-viewport {
+      background: white;
+      border-radius: 32px;
+      padding: 4rem 2rem;
+      border: 1px solid #e9e2d9;
+      min-height: 800px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: auto;
+      box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    /* Hierarchy Levels */
+    .tree-level {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      width: 100%;
+      position: relative;
+      padding: 2rem 0;
+    }
+
+    .level-label {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: #94a3b8;
+      writing-mode: vertical-lr;
+      transform: rotate(180deg) translateY(50%);
+    }
+
+    /* Node Styling */
+    .node {
+      width: 200px;
+      padding: 1.25rem;
+      border-radius: 20px;
+      background: white;
+      border: 2px solid #e2e8f0;
+      text-align: center;
+      position: relative;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .node:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: var(--card-shadow);
+    }
+
+    .node.active {
+      border-color: var(--color-primary);
+      background: #fef3c7;
+      box-shadow: 0 0 0 4px rgba(124, 79, 30, 0.1);
+    }
+
+    .node-tag { font-weight: 800; font-size: 1.1rem; color: #1e293b; margin-bottom: 0.25rem; }
+    .node-name { font-size: 0.8rem; color: #64748b; font-weight: 600; }
+    
+    .node-male { background: var(--male-bg); border-color: var(--male-border); }
+    .node-female { background: var(--female-bg); border-color: var(--female-border); }
+
+    /* Connectors */
+    .connector-line {
+      position: absolute;
+      background: #cbd5e1;
+      z-index: 1;
+    }
+
+    .v-line { width: 2px; left: 50%; transform: translateX(-50%); }
+    .h-line { height: 2px; top: 0; }
+
+    /* Animation */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .tree-level { animation: fadeInDown 0.6s ease forwards; }
+
+    .search-bar {
+      background: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      width: 400px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    select { border: none; outline: none; width: 100%; font-weight: 700; color: #1e293b; }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .main-container { margin-left: 0; padding: 1rem; padding-top: 5rem; }
+      header { flex-direction: column; align-items: flex-start; margin-bottom: 2rem; }
+      header h2 { font-size: 1.8rem !important; }
+      header p { font-size: 0.9rem !important; }
+      .search-bar { width: 100%; }
+      .tree-viewport { padding: 2rem 1rem; min-height: 500px; border-radius: 20px; }
+      .level-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR (Style Sample) -->
+  <nav class="sidebar-new sidebar">
+    <div style="padding: 2rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--color-primary); display: flex; align-items: center; justify-content: center; color: white;">
+          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pets</span>
+        </div>
+        <div>
+          <h1 style="font-size: 1.2rem; font-weight: 800; color: var(--color-primary-dark); line-height: 1;">BoviBot</h1>
+          <p style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--color-primary); margin-top: 0.2rem; opacity: 0.8;">Command Center</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav" style="flex: 1; padding: 0 1rem;">
+      <a href="index.html" class="sidebar-link">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="chat.html" class="sidebar-link">
+        <span class="material-symbols-outlined">smart_toy</span>
+        <span>Assistant IA</span>
+      </a>
+      <a href="troupeau.html" class="sidebar-link">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Troupeau</span>
+      </a>
+      <a href="genealogie.html" class="sidebar-link sidebar-active">
+        <span class="material-symbols-outlined">account_tree</span>
+        <span>Généalogie</span>
+      </a>
+      <a href="gestation.html" class="sidebar-link">
+        <span class="material-symbols-outlined">child_care</span>
+        <span>Gestation</span>
+      </a>
+      <a href="sante.html" class="sidebar-link">
+        <span class="material-symbols-outlined">monitor_heart</span>
+        <span>Santé</span>
+      </a>
+      <a href="reports.html" class="sidebar-link">
+        <span class="material-symbols-outlined">analytics</span>
+        <span>Rapports</span>
+      </a>
+      <div style="border-top: 1px solid var(--color-outline); margin: 1rem 0; padding-top: 1rem;">
+        <p style="font-size: 0.65rem; color: var(--color-text-soft); font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; padding-left: 1rem;">Outils</p>
+        <a href="settings.html" class="sidebar-link"><span class="material-symbols-outlined">settings</span><span>Paramètres</span></a>
+      </div>
+    </div>
+
+    <div style="padding: 1.5rem;">
+      <div style="background: var(--color-primary-light); border-radius: 12px; padding: 1rem; border: 1px solid var(--color-primary);">
+        <p style="font-size: 0.6rem; font-weight: 800; color: var(--color-primary-dark); text-transform: uppercase; margin-bottom: 0.5rem;">Santé globale</p>
+        <div class="progress-bar" style="margin-top: 0; background: white;"><div class="progress-fill" style="width: 85%;"></div></div>
+        <p style="font-size: 0.7rem; font-weight: 700; color: var(--color-primary); margin-top: 0.5rem;">85% Optimal</p>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main-container">
+    <header style="margin-bottom: 3rem; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <button id="hamburger-btn" class="hamburger-btn">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div>
+          <h2 style="font-size: 2.5rem; font-weight: 800; color: #0f172a; margin: 0;">Généalogie</h2>
+          <p style="color: #64748b; font-weight: 600; font-size: 1.1rem;">Explorez l'héritage génétique de votre troupeau du haut vers le bas.</p>
+        </div>
+      </div>
+      <div class="search-bar">
+        <span class="material-symbols-outlined" style="color: var(--color-primary);">dna</span>
+        <select id="animal-selector">
+          <option value="">Sélectionnez un animal...</option>
+        </select>
+      </div>
+    </header>
+
+    <div class="tree-viewport" id="tree-display">
+      <div style="text-align: center; color: #94a3b8; margin-top: 10rem;">
+        <span class="material-symbols-outlined" style="font-size: 5rem; opacity: 0.2; display: block; margin-bottom: 1rem;">family_history</span>
+        <p style="font-weight: 700; font-size: 1.2rem;">Sélectionnez un sujet pour générer sa lignée complète</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+  <script src="../js/nav.js"></script>
+  <script src="../js/genealogie.js"></script>
+</body>
+</html>
