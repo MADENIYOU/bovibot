@@ -507,3 +507,76 @@ INSERT INTO alimentation (animal_id, type_aliment, quantite_kg, date_alimentatio
 (2, 'Foin', 7.0, '2026-03-01', 150),
 (5, 'Concentre', 5.0, '2026-03-01', 350),
 (6, 'Lait maternel', 3.0, '2026-03-01', 0);
+
+-- ─── NOUVELLES FONCTIONNALITÉS MÉTIER ──────────────────────────
+
+-- 1. Table : Production de lait
+CREATE TABLE IF NOT EXISTS production_lait (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    animal_id INT NOT NULL,
+    date_traite DATE NOT NULL,
+    quantite_litre DECIMAL(6,2) NOT NULL,
+    periode ENUM('matin', 'soir') NOT NULL,
+    FOREIGN KEY (animal_id) REFERENCES animaux(id)
+);
+
+-- 2. Table : Gestion des stocks
+CREATE TABLE IF NOT EXISTS stocks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    categorie ENUM('aliment', 'soin', 'autre') NOT NULL,
+    quantite_disponible DECIMAL(10,2) NOT NULL,
+    unite VARCHAR(20) NOT NULL,
+    seuil_alerte DECIMAL(10,2) NOT NULL,
+    date_maj TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+DELIMITER $$
+
+-- 3. Fonction : Rentabilité estimée
+-- Compare la valeur marchande (poids * 1300 FCFA/kg) au coût total d'élevage
+CREATE FUNCTION fn_rentabilite_estimee(p_animal_id INT)
+RETURNS DECIMAL(12,2)
+READS SQL DATA
+BEGIN
+    DECLARE v_poids DECIMAL(6,2);
+    DECLARE v_cout_total DECIMAL(12,2);
+    DECLARE v_prix_marche_kg DECIMAL(6,2) DEFAULT 1300.00;
+    
+    SELECT poids_actuel INTO v_poids FROM animaux WHERE id = p_animal_id;
+    SET v_cout_total = fn_cout_total_elevage(p_animal_id);
+    
+    IF v_poids IS NULL OR v_cout_total IS NULL THEN
+        RETURN 0;
+    END IF;
+    
+    RETURN (v_poids * v_prix_marche_kg) - v_cout_total;
+END$$
+
+-- 4. Trigger : Alerte stock bas
+CREATE TRIGGER trg_alerte_stock_bas
+AFTER UPDATE ON stocks
+FOR EACH ROW
+BEGIN
+    IF NEW.quantite_disponible <= NEW.seuil_alerte THEN
+        INSERT INTO alertes (type, message, niveau)
+        VALUES ('autre', 
+            CONCAT('Stock critique pour ', NEW.nom, ' : ', NEW.quantite_disponible, ' ', NEW.unite, ' restants.'),
+            'critical');
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- ─── DONNÉES DE TEST SUPPLÉMENTAIRES ──────────────────────────
+
+INSERT INTO production_lait (animal_id, date_traite, quantite_litre, periode) VALUES
+(5, '2026-03-01', 12.5, 'matin'),
+(5, '2026-03-01', 10.0, 'soir'),
+(2, '2026-03-01', 2.5,  'matin');
+
+INSERT INTO stocks (nom, categorie, quantite_disponible, unite, seuil_alerte) VALUES
+('Foin de luzerne', 'aliment', 500.0, 'kg', 100.0),
+('Aliment concentré', 'aliment', 50.0, 'kg', 20.0),
+('Vaccin FMDV', 'soin', 15.0, 'doses', 5.0);
+
