@@ -101,54 +101,67 @@
     </div>
   </div>
 
-  <!-- SideNavBar -->
-  <aside class="sidebar fixed inset-y-0 left-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 h-full w-64 bg-surface-variant border-r border-outline flex flex-col shadow-sm">
-    <div class="p-8">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg">
+  <!-- SIDEBAR (Style Sample) -->
+  <nav class="sidebar-new sidebar">
+    <div style="padding: 2rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--color-primary); display: flex; align-items: center; justify-content: center; color: white;">
           <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pets</span>
         </div>
         <div>
-          <h1 class="text-xl font-extrabold text-primary-dark leading-none">BoviBot</h1>
-          <p class="text-[10px] uppercase tracking-widest text-primary mt-1 opacity-70">Herd Management</p>
+          <h1 style="font-size: 1.2rem; font-weight: 800; color: var(--color-primary-dark); line-height: 1;">BoviBot</h1>
+          <p style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--color-primary); margin-top: 0.2rem; opacity: 0.8;">Command Center</p>
         </div>
       </div>
     </div>
 
-    <nav class="flex-grow px-4 space-y-1 mt-4">
-      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="index.html">
+    <div class="sidebar-nav" style="flex: 1; padding: 0 1rem;">
+      <a href="index.html" class="sidebar-link">
         <span class="material-symbols-outlined">dashboard</span>
         <span>Dashboard</span>
       </a>
-      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="chat.html">
+      <a href="chat.html" class="sidebar-link">
         <span class="material-symbols-outlined">smart_toy</span>
         <span>Assistant IA</span>
       </a>
-      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="troupeau.html">
+      <a href="troupeau.html" class="sidebar-link sidebar-active">
         <span class="material-symbols-outlined">groups</span>
         <span>Troupeau</span>
       </a>
-      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="gestation.html">
+      <a href="genealogie.html" class="sidebar-link">
+        <span class="material-symbols-outlined">account_tree</span>
+        <span>Généalogie</span>
+      </a>
+      <a href="gestation.html" class="sidebar-link">
         <span class="material-symbols-outlined">child_care</span>
         <span>Gestation</span>
       </a>
-      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="sante.html">
+      <a href="sante.html" class="sidebar-link">
         <span class="material-symbols-outlined">monitor_heart</span>
         <span>Santé</span>
       </a>
-      <a class="flex items-center gap-3 text-on-surface-variant px-4 py-3 hover:bg-white hover:text-primary transition-all rounded-xl font-bold" href="reports.html">
+      <a href="stocks.html" class="sidebar-link">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span>Stocks</span>
+      </a>
+      <a href="reports.html" class="sidebar-link">
         <span class="material-symbols-outlined">analytics</span>
         <span>Rapports</span>
       </a>
-    </nav>
-
-    <div class="p-6 mt-auto">
-      <div class="bg-primary-light rounded-2xl p-4 border border-primary/20">
-        <p class="text-[10px] text-primary font-black uppercase mb-2">Support Technique</p>
-        <button class="w-full py-3 bg-primary text-white rounded-xl font-bold text-xs shadow-lg active:scale-95 transition-all">Aide & Contact</button>
+      <div style="border-top: 1px solid var(--color-outline); margin: 1rem 0; padding-top: 1rem;">
+        <p style="font-size: 0.65rem; color: var(--color-text-soft); font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; padding-left: 1rem;">Outils</p>
+        <a href="settings.html" class="sidebar-link"><span class="material-symbols-outlined">settings</span><span>Paramètres</span></a>
       </div>
     </div>
-  </aside>
+
+    <div style="padding: 1.5rem;">
+      <div style="background: var(--color-primary-light); border-radius: 12px; padding: 1rem; border: 1px solid var(--color-primary);">
+        <p style="font-size: 0.6rem; font-weight: 800; color: var(--color-primary-dark); text-transform: uppercase; margin-bottom: 0.5rem;">Santé globale</p>
+        <div class="progress-bar" style="margin-top: 0; background: white;"><div class="progress-fill" style="width: 85%;"></div></div>
+        <p style="font-size: 0.7rem; font-weight: 700; color: var(--color-primary); margin-top: 0.5rem;">85% Optimal</p>
+      </div>
+    </div>
+  </nav>
 
   <!-- Main Content Area -->
   <main class="md:ml-64 min-h-screen p-6 lg:p-10">
@@ -165,9 +178,17 @@
         </div>
       </div>
       <div class="flex gap-3">
+        <button id="ai-analysis-button" onclick="triggerAiAnalysis('l\'inventaire du troupeau, les races et la croissance globale (GMQ)')" class="flex items-center gap-2 px-5 py-2.5 bg-secondary text-white rounded-xl font-bold shadow-lg hover:bg-secondary/80 transition-all">
+          <span class="material-symbols-outlined text-lg">psychology</span>
+          Analyse IA
+        </button>
         <button onclick="exportCSV()" class="flex items-center gap-2 px-5 py-2.5 bg-white text-primary border border-outline rounded-xl font-bold transition-all hover:bg-primary-light shadow-sm">
           <span class="material-symbols-outlined text-lg">file_download</span>
           Exporter CSV
+        </button>
+        <button onclick="openMilkModal()" class="flex items-center gap-2 px-5 py-2.5 bg-white text-secondary border border-secondary/20 rounded-xl font-bold transition-all hover:bg-green-50 shadow-sm">
+          <span class="material-symbols-outlined text-lg">water_drop</span>
+          Saisie Lait
         </button>
         <button onclick="openAddModal()" class="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-primary-dark transition-all">
           <span class="material-symbols-outlined text-lg">add_circle</span>
@@ -226,17 +247,19 @@
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nom</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Race</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sexe</th>
-              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Âge (mois)</th>
-              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Poids Actuel</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Âge</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Poids</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">GMQ</th>
+              <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Rentabilité</th>
               <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline" id="troupeau-body">
-            <tr><td colspan="8" class="p-12 text-center text-slate-400 font-medium italic">Chargement des données...</td></tr>
+            <tr><td colspan="9" class="p-12 text-center text-slate-400 font-medium italic">Chargement des données...</td></tr>
           </tbody>
         </table>
       </div>
+
       
       <!-- Pagination footer -->
       <div class="px-6 py-4 bg-slate-50 flex items-center justify-between text-sm border-t border-outline">
@@ -300,6 +323,23 @@
     </div>
   </main>
 
+  <!-- AI ANALYSIS MODAL -->
+  <div id="ai-analysis-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="ai-modal-title" class="font-black text-primary-dark uppercase text-sm tracking-widest">Analyse IA</h3>
+        <button onclick="closeAiAnalysisModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body" id="ai-modal-body">
+        <div class="flex justify-center items-center p-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL AJOUT ANIMAL -->
   <div id="modal-add-animal" class="modal-overlay" onclick="closeAddModal(event)">
     <div class="modal-content max-w-md" onclick="event.stopPropagation()">
@@ -360,9 +400,44 @@
     </div>
   </div>
 
+  <!-- MODAL SAISIE LAIT -->
+  <div id="modal-milk" class="modal-overlay" onclick="closeMilkModal(event)">
+    <div class="modal-content max-w-sm" onclick="event.stopPropagation()">
+      <div class="p-6 border-b border-outline flex justify-between items-center bg-green-50">
+        <h4 class="font-black text-secondary uppercase text-sm tracking-widest flex items-center gap-2">
+          <span class="material-symbols-outlined">water_drop</span> Saisie de Traite
+        </h4>
+        <button onclick="closeMilkModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <form id="form-milk" class="p-6 space-y-4" onsubmit="submitMilk(event)">
+        <div>
+          <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Vache Laitière</label>
+          <select id="milk-animal-id" required class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20 outline-none"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Quantité (Litres)</label>
+            <input type="number" id="milk-qty" step="0.1" required class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20 outline-none">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Période</label>
+            <select id="milk-periode" class="w-full bg-slate-50 border border-outline rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20 outline-none">
+              <option value="matin">Matin</option>
+              <option value="soir">Soir</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="w-full py-3 bg-secondary text-white font-black rounded-xl text-xs shadow-lg active:scale-95 transition-all uppercase mt-4">Enregistrer la traite</button>
+      </form>
+    </div>
+  </div>
+
   <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
   <script src="../js/nav.js"></script>
+  <script src="../js/ai-analysis.js"></script>
   <script src="../js/troupeau.js"></script>
 </body>
 </html>

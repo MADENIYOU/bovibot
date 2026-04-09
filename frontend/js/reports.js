@@ -1,3 +1,8 @@
+// ============================================================
+//  BoviBot — reports.js
+// ============================================================
+
+let charts = {}; // Stockage des instances pour export
 
 async function initReports() {
   try {
@@ -28,7 +33,7 @@ async function initReports() {
 }
 
 function renderFinanceChart(data) {
-  new Chart(document.getElementById('financeChart'), {
+  charts.finance = new Chart(document.getElementById('financeChart'), {
     type: 'line',
     data: {
       labels: data.map(d => d.mois),
@@ -41,12 +46,12 @@ function renderFinanceChart(data) {
         tension: 0.4
       }]
     },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: { responsive: true, maintainAspectRatio: false, animation: { onComplete: () => { window.financeLoaded = true; } } }
   });
 }
 
 function renderRaceChart(data) {
-  new Chart(document.getElementById('raceChart'), {
+  charts.race = new Chart(document.getElementById('raceChart'), {
     type: 'bar',
     data: {
       labels: data.map(d => d.race),
@@ -62,7 +67,7 @@ function renderRaceChart(data) {
 }
 
 function renderHealthChart(data) {
-  new Chart(document.getElementById('healthCostsChart'), {
+  charts.health = new Chart(document.getElementById('healthCostsChart'), {
     type: 'line',
     data: {
       labels: data.map(d => d.mois),
@@ -79,16 +84,8 @@ function renderHealthChart(data) {
   });
 }
 
-function renderProfitability(data) {
-  if (data && data.length > 0) {
-    const top = data[0];
-    document.getElementById('top-race-name').textContent = top.race;
-    document.getElementById('top-race-price').textContent = `Prix moyen: ${Number(top.prix_moyen).toLocaleString('fr-FR')} F`;
-  }
-}
-
 function renderDemoChart(data) {
-  new Chart(document.getElementById('demoChart'), {
+  charts.demo = new Chart(document.getElementById('demoChart'), {
     type: 'doughnut',
     data: {
       labels: data.map(d => d.sexe === 'M' ? 'Mâles' : 'Femelles'),
@@ -100,6 +97,14 @@ function renderDemoChart(data) {
     },
     options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
   });
+}
+
+function renderProfitability(data) {
+  if (data && data.length > 0) {
+    const top = data[0];
+    document.getElementById('top-race-name').textContent = top.race;
+    document.getElementById('top-race-price').textContent = `Prix moyen: ${Number(top.prix_moyen).toLocaleString('fr-FR')} F`;
+  }
 }
 
 function renderTopPerformers(data) {
@@ -117,6 +122,53 @@ function renderTopPerformers(data) {
       <td class="px-6 py-4 text-right font-black text-secondary">+${parseFloat(a.gmq_kg_jour).toFixed(3)}</td>
     </tr>
   `).join('');
+}
+
+// FONCTION EXPORT PDF WYSIWYG
+async function exportFullPDF() {
+  const btn = event.currentTarget;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Génération...';
+  btn.disabled = true;
+
+  try {
+    // Capture des graphiques en Base64
+    const payload = {
+      charts: {
+        finance: charts.finance.toBase64Image(),
+        race: charts.race.toBase64Image(),
+        health: charts.health.toBase64Image(),
+        demo: charts.demo.toBase64Image()
+      }
+    };
+
+    const response = await fetch('/api/reports/full/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) throw new Error("Erreur serveur lors de la génération PDF");
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Bilan_BoviBot_${new_date()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+  } catch (err) {
+    alert("Erreur export PDF: " + err.message);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
+function new_date() {
+  return new Date().toISOString().split('T')[0];
 }
 
 document.addEventListener('DOMContentLoaded', initReports);

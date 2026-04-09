@@ -80,52 +80,67 @@
   <div class="flex h-full">
     
     <!-- SIDEBAR (Style Sample) -->
-    <aside class="sidebar w-72 border-r border-outline bg-surface-variant flex flex-col z-40">
-      <div class="p-8">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg">
+    <nav class="sidebar-new sidebar">
+      <div style="padding: 2rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--color-primary); display: flex; align-items: center; justify-content: center; color: white;">
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pets</span>
           </div>
           <div>
-            <h1 class="text-xl font-extrabold text-primary-dark leading-none">BoviBot</h1>
-            <p class="text-[10px] uppercase tracking-widest text-primary mt-1 opacity-70">IA Command</p>
+            <h1 style="font-size: 1.2rem; font-weight: 800; color: var(--color-primary-dark); line-height: 1;">BoviBot</h1>
+            <p style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--color-primary); margin-top: 0.2rem; opacity: 0.8;">Command Center</p>
           </div>
         </div>
       </div>
 
-      <nav class="flex-1 px-4 space-y-1 mt-4">
-        <a href="index.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+      <div class="sidebar-nav" style="flex: 1; padding: 0 1rem;">
+        <a href="index.html" class="sidebar-link">
           <span class="material-symbols-outlined">dashboard</span>
-          <span class="text-sm font-bold">Dashboard</span>
+          <span>Dashboard</span>
         </a>
-        <a href="chat.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all bg-white text-primary shadow-sm border border-outline font-bold">
-          <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">psychology</span>
-          <span class="text-sm">Assistant IA</span>
+        <a href="chat.html" class="sidebar-link sidebar-active">
+          <span class="material-symbols-outlined">smart_toy</span>
+          <span>Assistant IA</span>
         </a>
-        <a href="troupeau.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+        <a href="troupeau.html" class="sidebar-link">
           <span class="material-symbols-outlined">groups</span>
-          <span class="text-sm font-bold">Troupeau</span>
+          <span>Troupeau</span>
         </a>
-        <a href="gestation.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+        <a href="genealogie.html" class="sidebar-link">
+          <span class="material-symbols-outlined">account_tree</span>
+          <span>Généalogie</span>
+        </a>
+        <a href="gestation.html" class="sidebar-link">
           <span class="material-symbols-outlined">child_care</span>
-          <span class="text-sm font-bold">Gestation</span>
+          <span>Gestation</span>
         </a>
-        <a href="sante.html" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-500 hover:bg-white hover:text-primary group">
+        <a href="sante.html" class="sidebar-link">
           <span class="material-symbols-outlined">monitor_heart</span>
-          <span class="text-sm font-bold">Santé</span>
+          <span>Santé</span>
         </a>
-      </nav>
+        <a href="stocks.html" class="sidebar-link">
+          <span class="material-symbols-outlined">inventory_2</span>
+          <span>Stocks</span>
+        </a>
+        <a href="reports.html" class="sidebar-link">
+          <span class="material-symbols-outlined">analytics</span>
+          <span>Rapports</span>
+        </a>
 
-      <div class="p-6 mt-auto">
-        <div class="bg-primary-light rounded-2xl p-4 border border-primary/20">
-          <p class="text-[10px] text-primary font-black uppercase mb-2">Statut Système</p>
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-            <span class="text-xs font-bold text-primary-dark">Connecté à MySQL</span>
-          </div>
+        <div style="border-top: 1px solid var(--color-outline); margin: 1rem 0; padding-top: 1rem;">
+          <p style="font-size: 0.65rem; color: var(--color-text-soft); font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; padding-left: 1rem;">Outils</p>
+          <a href="settings.html" class="sidebar-link"><span class="material-symbols-outlined">settings</span><span>Paramètres</span></a>
         </div>
       </div>
-    </aside>
+
+      <div style="padding: 1.5rem;">
+        <div style="background: var(--color-primary-light); border-radius: 12px; padding: 1rem; border: 1px solid var(--color-primary);">
+          <p style="font-size: 0.6rem; font-weight: 800; color: var(--color-primary-dark); text-transform: uppercase; margin-bottom: 0.5rem;">Santé globale</p>
+          <div class="progress-bar" style="margin-top: 0; background: white;"><div class="progress-fill" style="width: 85%;"></div></div>
+          <p style="font-size: 0.7rem; font-weight: 700; color: var(--color-primary); margin-top: 0.5rem;">85% Optimal</p>
+        </div>
+      </div>
+    </nav>
 
     <!-- Main Content Area -->
     <main class="flex-1 flex flex-col relative min-w-0">

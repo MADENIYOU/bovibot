@@ -110,12 +110,14 @@ async function chargerGestations() {
 
 // ── Données Réelles pour les Graphiques ───────────────────────
 
-async function chargerStatsCroissance() {
+async function chargerStatsCroissance(days = 30) {
   try {
-    const res = await fetch('/api/stats/poids-mensuel');
+    const res = await fetch(`/api/stats/poids-mensuel?days=${days}`);
     const data = await res.json();
-    if (data.length > 0) {
-      growthChart.data.labels = data.map(d => d.mois);
+    console.log(`Données croissance (${days} jours):`, data);
+    
+    if (growthChart) {
+      growthChart.data.labels = data.map(d => d.jour);
       growthChart.data.datasets[0].data = data.map(d => d.poids);
       growthChart.update();
     }

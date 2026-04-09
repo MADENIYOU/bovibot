@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BoviBot — Dashboard Command</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#7c4f1e",
+            "primary-dark": "#4a2c00",
+            "primary-light": "#fdf6ec",
+            "secondary": "#16a34a",
+            "background": "#f5f0e8",
+            "surface": "#ffffff",
+            "outline": "#e2e8f0"
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="../css/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Public+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
@@ -322,6 +340,10 @@
           <span class="material-symbols-outlined">groups</span>
           <span>Troupeau</span>
         </a>
+        <a href="genealogie.html" class="sidebar-link">
+          <span class="material-symbols-outlined">account_tree</span>
+          <span>Généalogie</span>
+        </a>
         <a href="gestation.html" class="sidebar-link">
           <span class="material-symbols-outlined">child_care</span>
           <span>Gestation</span>
@@ -330,10 +352,15 @@
           <span class="material-symbols-outlined">monitor_heart</span>
           <span>Santé</span>
         </a>
+        <a href="stocks.html" class="sidebar-link">
+          <span class="material-symbols-outlined">inventory_2</span>
+          <span>Stocks</span>
+        </a>
         <a href="reports.html" class="sidebar-link">
           <span class="material-symbols-outlined">analytics</span>
           <span>Rapports</span>
         </a>
+
         <div style="border-top: 1px solid var(--color-outline); margin: 1rem 0; padding-top: 1rem;">
           <p style="font-size: 0.65rem; color: var(--color-text-soft); font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; padding-left: 1rem;">Outils</p>
           <a href="settings.html" class="sidebar-link"><span class="material-symbols-outlined">settings</span><span>Paramètres</span></a>
@@ -375,6 +402,14 @@
         </div>
       </header>
 
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="font-black text-primary-dark uppercase text-xs tracking-widest">Aperçu de la Performance</h3>
+        <button id="ai-analysis-button" onclick="triggerAiAnalysis('la situation globale de l\'exploitation (statistiques, finances, alertes, croissance)')" class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-primary-dark hover:scale-105 transition-all active:scale-95">
+          <span class="material-symbols-outlined text-lg">psychology</span>
+          Analyse IA Stratégique
+        </button>
+      </div>
+
       <!-- KPI Row (4 Cards au lieu de 6 pour plus d'impact) -->
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -408,8 +443,9 @@
         <div class="chart-box">
           <div class="chart-header">
             <h3 class="chart-title">Évolution des Pesées (KG)</h3>
-            <select style="font-size: 0.7rem; padding: 0.3rem; border-radius: 4px; border: 1px solid var(--color-outline);">
-              <option>Derniers 30 jours</option>
+            <select id="weight-period-select" onchange="chargerStatsCroissance(this.value)" class="bg-slate-50 border border-outline text-slate-500 text-[10px] font-black uppercase tracking-widest rounded-xl focus:ring-primary focus:border-primary block p-2 px-3 transition-all cursor-pointer hover:bg-white outline-none">
+              <option value="30">Derniers 30 jours</option>
+              <option value="7">7 jours</option>
             </select>
           </div>
           <div style="height: 250px;"><canvas id="growthChart"></canvas></div>
@@ -502,9 +538,27 @@
     </div>
   </div>
 
+  <!-- AI ANALYSIS MODAL -->
+  <div id="ai-analysis-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="ai-modal-title" class="font-black text-primary-dark uppercase text-sm tracking-widest">Analyse IA</h3>
+        <button onclick="closeAiAnalysisModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="modal-body" id="ai-modal-body">
+        <div class="flex justify-center items-center p-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
   <script src="../js/nav.js"></script>
+  <script src="../js/ai-analysis.js"></script>
   <script src="../js/dashboard.js"></script>
 </body>
 </html>
