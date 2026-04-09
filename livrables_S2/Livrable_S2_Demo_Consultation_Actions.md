@@ -13,10 +13,10 @@
 
 | Membre | Rôle | Branche S2 | Paquet |
 |--------|------|-----------|--------|
-| **Mouhamadou Madeniyou Sall** | Tech Lead / Backend & AI Engineer | `dev-sall-s2` | A — Backend, IA, PL/SQL |
-| **Abdoul Aziz Kane** | Frontend Architect | `dev-kane-s2` | B — Structure HTML & Design System CSS |
-| **Anna** | Frontend JS Engineer | `dev-anna-s2` | C — Connexion JS ↔ API |
-| **Barro** | DevOps / Infrastructure | `dev-barro-s2` | D — Docker & Déploiement VPS |
+| **Mouhamadou Madeniyou SALL** | Tech Lead / Backend & AI Engineer | `dev-sall-s2` | A — Backend, IA, PL/SQL |
+| **Abdoul Aziz KANE** | Frontend Architect | `dev-kane-s2` | B — Structure HTML & Design System CSS |
+| **Anna NDOYE** | Frontend JS Engineer | `dev-anna-s2` | C — Connexion JS ↔ API |
+| **Fatoumata BARRO** | DevOps / Infrastructure | `dev-barro-s2` | D — Docker & Déploiement VPS |
 
 ---
 
