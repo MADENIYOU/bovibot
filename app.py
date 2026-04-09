@@ -670,12 +670,17 @@ def get_animal_genealogie(animal_id: int):
     animal = root[0]
 
     # 2. Grands-parents avec stats
-    grand_parents = execute_query("""
-        SELECT id, numero_tag, nom, sexe, mere_id, pere_id,
-               fn_gmq(id) as gmq, fn_rentabilite_estimee(id) as rentabilite 
-        FROM animaux 
-        WHERE id IN (%s, %s, %s, %s)
-    """, [animal['grand_mere_mat_id'], animal['grand_pere_mat_id'], animal['grand_mere_pat_id'], animal['grand_pere_pat_id']])
+    gp_ids = [x for x in [animal['grand_mere_mat_id'], animal['grand_pere_mat_id'], animal['grand_mere_pat_id'], animal['grand_pere_pat_id']] if x is not None]
+    if gp_ids:
+        placeholders = ','.join(['%s'] * len(gp_ids))
+        grand_parents = execute_query(f"""
+            SELECT id, numero_tag, nom, sexe, mere_id, pere_id,
+                   fn_gmq(id) as gmq, fn_rentabilite_estimee(id) as rentabilite
+            FROM animaux
+            WHERE id IN ({placeholders})
+        """, gp_ids)
+    else:
+        grand_parents = []
 
     # 3. Enfants avec stats
     offspring = execute_query("""
