@@ -1,86 +1,28 @@
-\# BoviBot — Gestion d'Élevage Bovin avec IA et PL/SQL
+# BoviBot — Projet L3 ESP/UCAD
 
+## Démarrage rapide
 
+1. Créer la base et activer l'event scheduler :
+   mysql -u root -p < schema.sql
 
-Application web de gestion de troupeau bovin intégrant un assistant LLM
+2. Configurer l'environnement :
+   cp .env.example .env  # Éditer avec vos valeurs
 
-(Text-to-SQL) et des éléments PL/SQL avancés (procédures, triggers, events).
+3. Installer les dépendances :
+   pip install -r requirements.txt
 
+4. Lancer le backend :
+   python app.py  # port 8002
 
+5. Ouvrir index.html (mettre l'URL backend dans la variable API)
 
-\## Prérequis
+## PL/SQL inclus
+- Procédures : sp_enregistrer_pesee, sp_declarer_vente
+- Fonctions   : fn_age_en_mois, fn_gmq
+- Triggers    : trg_historique_statut, trg_alerte_vaccination, trg_alerte_poids_faible
+- Events      : evt_alerte_velages (quotidien), evt_rapport_croissance (hebdo)
 
-
-
-\- Docker Desktop installé et lancé
-
-\- Clé API OpenAI (gpt-4o-mini)
-
-\- Git
-
-
-
-\## Installation en 4 commandes
-
-
-
-git clone https://github.com/MADENIYOU/bovibot.git
-
-cd bovibot
-
-cp .env.example .env   # Remplir les variables
-
-docker compose up -d --build
-
-
-
-Accéder à : http://localhost/
-
-
-
-\## Variables d'environnement
-
-
-
-Copier .env.example en .env et remplir :
-
-
-
-\- DB\_PASSWORD : mot de passe MySQL
-
-\- LLM\_API\_KEY : clé API OpenAI (sk-...)
-
-\- LLM\_MODEL : gpt-4o-mini (par défaut)
-
-
-
-\## Commandes utiles
-
-
-
-\# Voir les logs
-
-docker compose logs -f
-
-
-
-\# Arrêter l'application
-
-docker compose down
-
-
-
-\# Reset complet des données
-
-docker compose down -v
-
-docker compose up -d --build
-
-
-
-\# Redémarrer après mise à jour
-
-git pull origin develop
-
-docker compose up -d --build
-
+## Livrables
+- Lien plateforme déployée + lien chat IA
+- Rapport PDF (MCD, MLD, PL/SQL documenté)
+- Présentation PowerPoint
