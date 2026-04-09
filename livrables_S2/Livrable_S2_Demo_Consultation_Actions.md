@@ -1,7 +1,7 @@
 # Livrable Semaine 2 — BoviBot
 ## Démo : Consultation & Actions — Rapport Technique Consolidé
 
-**Établissement :** ESP/UCAD — DIC2 TR  
+**Établissement :** ESP/UCAD — DIC2 IABD-SSI-TR  
 **Projet :** BoviBot — Gestion d'Élevage Bovin avec Intelligence Artificielle et PL/SQL  
 **Milestone :** M2 — Intégration & Déploiement  
 **Date de livraison :** 08 avril 2026  
