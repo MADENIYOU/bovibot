@@ -10,6 +10,10 @@ from pydantic import BaseModel
 from datetime import datetime
 import mysql.connector
 import os, re, json, httpx
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from fastapi.responses import StreamingResponse
 
 app = FastAPI(title="BoviBot API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -30,11 +34,13 @@ DB_SCHEMA = """
 Tables MySQL :
 - races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
 - animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance, poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id, notes, created_at)
-  (Note : numero_tag est l'identifiant unique visible (ex: TAG-001). race_id -> races.id)
+  (Note : numero_tag est l'identifiant unique visible (ex: TAG-001). race_id -> races.id. mere_id et pere_id sont des FK vers animaux.id pour la généalogie.)
 - pesees(id, animal_id, poids_kg, date_pesee, agent, notes)
 - sante(id, animal_id, type[vaccination/traitement/examen/chirurgie], description, date_acte, veterinaire, medicament, cout, prochain_rdv)
 - reproduction(id, mere_id, pere_id, date_saillie, date_velage_prevue, date_velage_reelle, nb_veaux, statut[en_gestation/vele/avortement/echec])
 - alimentation(id, animal_id, type_aliment, quantite_kg, date_alimentation, cout_unitaire_kg)
+- production_lait(id, animal_id, date_traite, quantite_litre, periode[matin/soir])
+- stocks(id, nom, categorie[aliment/soin/autre], quantite_disponible, unite, seuil_alerte)
 - ventes(id, animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
 - alertes(id, animal_id, type, message, niveau[info/warning/critical], traitee)
 - historique_statut(id, animal_id, ancien_statut, nouveau_statut, date_changement)
@@ -43,10 +49,12 @@ Fonctions :
 - fn_age_en_mois(animal_id) -> INT
 - fn_gmq(animal_id) -> DECIMAL (gain moyen quotidien en kg/jour)
 - fn_cout_total_elevage(animal_id) -> DECIMAL (somme cumulée alimentation + santé)
+- fn_rentabilite_estimee(animal_id) -> DECIMAL (valeur marchande estimée - coûts)
 
 Procédures disponibles :
 - sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
 - sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa, poids_vente_kg, date_vente)
+- sp_rapport_nutritionnel(animal_id)
 """
 
 def get_system_prompt():
@@ -65,7 +73,9 @@ Réponds exclusivement en JSON pur, sans markdown.
 
 ### BLOC 2 — RÈGLES SQL
 - Filtrer `statut='actif'` par défaut sauf demande explicite.
-- Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)` et `fn_cout_total_elevage(a.id)`.
+- Utiliser `fn_age_en_mois(a.id)`, `fn_gmq(a.id)`, `fn_cout_total_elevage(a.id)` et `fn_rentabilite_estimee(a.id)`.
+- Pour le lait, utilise `production_lait`. Pour les stocks, utilise `stocks`.
+- Pour la généalogie, utilise des jointures sur `mere_id` ou `pere_id`. Ex: "Mère de TAG-006" -> `SELECT m.numero_tag FROM animaux a JOIN animaux m ON a.mere_id = m.id WHERE a.numero_tag = 'TAG-006'`.
 - Ne jamais générer de DELETE ou DROP. Limiter à 100 résultats.
 
 ### BLOC 3 — PROCÉDURES DISPONIBLES
@@ -83,6 +93,7 @@ IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou un
 - Consultation : Fais une jointure ou un WHERE sur `numero_tag`.
 - Action : Si tu n'as pas l'ID technique (animal_id), retourne un type 'info' demandant de confirmer l'animal ou cherche l'ID via une requête préalable. Ne jamais inventer d'ID.
 """
+
 
 # ── Sécurité ────────────────────────────────────────────────────
 def validate_sql(sql: str):
@@ -288,6 +299,104 @@ def dashboard():
         stats[k] = result[0]["n"] if result else 0
     return stats
 
+@app.get("/api/stats/poids-mensuel")
+def get_poids_mensuel(days: int = 30):
+    # On ancre la recherche sur la date de la dernière pesée enregistrée
+    # pour éviter d'avoir un graphique vide si aucune donnée n'est récente
+    last_date_res = execute_query("SELECT MAX(date_pesee) as last_date FROM pesees")
+    anchor_date = last_date_res[0]['last_date'] if last_date_res and last_date_res[0]['last_date'] else datetime.now().date()
+
+    return execute_query("""
+        SELECT DATE_FORMAT(date_pesee, '%Y-%m-%d') as tri, 
+               DATE_FORMAT(date_pesee, '%d/%m') as jour, 
+               ROUND(AVG(poids_kg), 1) as poids
+        FROM pesees
+        WHERE date_pesee >= DATE_SUB(%s, INTERVAL %s DAY)
+        GROUP BY tri, jour
+        ORDER BY tri ASC
+    """, [anchor_date, days])
+
+@app.get("/api/stats/sante-repartition")
+def get_sante_repartition():
+    # Compte réel des actes par type
+    return execute_query("""
+        SELECT type, COUNT(*) as n 
+        FROM sante 
+        GROUP BY type
+    """)
+
+# ── Endpoints Rapports ──────────────────────────────────────────
+@app.get("/api/settings")
+def get_settings():
+    # Simulation de stockage de paramètres (idéalement en base de données)
+    return {
+        "farm_name": "Ferme Pilote BoviBot",
+        "supervisor": "Admin Intel",
+        "llm_model": LLM_MODEL,
+        "alert_threshold_gmq": 0.3,
+        "db_status": "connected"
+    }
+
+@app.post("/api/settings")
+async def update_settings(settings: dict):
+    # Logique de mise à jour (ici on simule le succès)
+    return {"status": "success", "message": "Paramètres mis à jour"}
+
+@app.get("/api/reports/finance")
+def get_report_finance():
+    # Ventes mensuelles sur 12 mois
+    return execute_query("""
+        SELECT DATE_FORMAT(date_vente, '%b %y') as mois, SUM(prix_fcfa) as total 
+        FROM ventes 
+        WHERE date_vente >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY mois ORDER BY MIN(date_vente) ASC
+    """)
+
+@app.get("/api/reports/races-performance")
+def get_report_races():
+    # GMQ moyen par race
+    return execute_query("""
+        SELECT r.nom as race, ROUND(AVG(fn_gmq(a.id)), 3) as gmq_moyen 
+        FROM animaux a 
+        JOIN races r ON a.race_id = r.id 
+        WHERE a.statut = 'actif' 
+        GROUP BY r.nom
+        HAVING gmq_moyen IS NOT NULL
+        ORDER BY gmq_moyen DESC
+    """)
+
+@app.get("/api/reports/demography")
+def get_report_demo():
+    # Répartition par sexe
+    return execute_query("""
+        SELECT sexe, COUNT(*) as count 
+        FROM animaux 
+        WHERE statut = 'actif' 
+        GROUP BY sexe
+    """)
+
+@app.get("/api/reports/profitability")
+def get_report_profitability():
+    # Prix de vente moyen par race
+    return execute_query("""
+        SELECT r.nom as race, ROUND(AVG(v.prix_fcfa), 0) as prix_moyen
+        FROM ventes v
+        JOIN animaux a ON v.animal_id = a.id
+        JOIN races r ON a.race_id = r.id
+        GROUP BY r.nom
+        ORDER BY prix_moyen DESC
+    """)
+
+@app.get("/api/reports/health-costs")
+def get_report_health_costs():
+    # Dépenses santé par mois
+    return execute_query("""
+        SELECT DATE_FORMAT(date_acte, '%b %y') as mois, SUM(cout) as total
+        FROM sante
+        WHERE date_acte >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        GROUP BY mois ORDER BY MIN(date_acte) ASC
+    """)
+
 @app.get("/api/animaux")
 def get_animaux():
     return execute_query("""
@@ -298,6 +407,33 @@ def get_animaux():
         WHERE a.statut = 'actif'
         ORDER BY a.numero_tag
     """)
+
+class AnimalCreate(BaseModel):
+    numero_tag: str
+    nom: str = None
+    race_id: int
+    sexe: str
+    date_naissance: str
+
+@app.post("/api/animaux")
+def create_animal(animal: AnimalCreate):
+    sql = "INSERT INTO animaux (numero_tag, nom, race_id, sexe, date_naissance, statut) VALUES (%s, %s, %s, %s, %s, 'actif')"
+    params = (animal.numero_tag, animal.nom, animal.race_id, animal.sexe, animal.date_naissance)
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, params)
+        conn.commit()
+        return {"status": "success"}
+    except mysql.connector.Error as err:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=err.msg)
+    finally:
+        cursor.close(); conn.close()
+
+@app.get("/api/races")
+def get_races():
+    return execute_query("SELECT id, nom FROM races ORDER BY nom")
 
 @app.get("/api/animaux/{animal_id}/cout-total")
 def get_animal_cout_total(animal_id: int):
@@ -358,6 +494,301 @@ def get_gestations():
         WHERE r.statut = 'en_gestation'
         ORDER BY r.date_velage_prevue ASC
     """)
+
+# ── Endpoints Bonus ──────────────────────────────────────────
+
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib.units import inch
+
+import base64
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image as RLImage
+
+class PDFPayload(BaseModel):
+    charts: dict
+
+@app.post("/api/reports/full/pdf")
+def export_full_report_pdf(payload: PDFPayload):
+    # 1. Collecte des données texte
+    stats = execute_query("SELECT COUNT(*) as total, SUM(CASE WHEN sexe='F' THEN 1 ELSE 0 END) as femelles, SUM(CASE WHEN sexe='M' THEN 1 ELSE 0 END) as males FROM animaux WHERE statut='actif'")[0]
+    gestations = execute_query("SELECT a.numero_tag, r.date_velage_prevue, DATEDIFF(r.date_velage_prevue, CURDATE()) as jours FROM reproduction r JOIN animaux a ON r.mere_id = a.id WHERE r.statut='en_gestation'")
+    sante_rdv = execute_query("SELECT a.numero_tag, s.type, s.prochain_rdv FROM sante s JOIN animaux a ON s.animal_id = a.id WHERE s.prochain_rdv >= CURDATE() ORDER BY s.prochain_rdv ASC")
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Styles
+    header_style = ParagraphStyle('HeaderStyle', parent=styles['Heading1'], fontSize=26, textColor=colors.HexColor("#7c4f1e"), alignment=1)
+    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=12, textColor=colors.grey, alignment=1, spaceAfter=20)
+    section_style = ParagraphStyle('SectionStyle', parent=styles['Heading2'], fontSize=16, textColor=colors.HexColor("#5a3a15"), spaceBefore=15, spaceAfter=10, backColor=colors.HexColor("#fdf6ec"), borderPadding=5)
+
+    def get_image(base64_str, width=6.5*inch):
+        if not base64_str: return None
+        header, data = base64_str.split(',')
+        img_data = base64.b64decode(data)
+        img_buffer = BytesIO(img_data)
+        return RLImage(img_buffer, width=width, height=width*0.5)
+
+    # --- PAGE 1 : ANALYSE VISUELLE ---
+    elements.append(Paragraph("BILAN D'EXPLOITATION BOVIBOT", header_style))
+    elements.append(Paragraph(f"Rapport d'analyse dynamique — {datetime.now().strftime('%d/%m/%Y')}", subtitle_style))
+    elements.append(Spacer(1, 0.4*inch))
+
+    # Graphique Finance (Large)
+    elements.append(Paragraph("1. Analyse de la Performance Financière", section_style))
+    img_fin = get_image(payload.charts.get('finance'))
+    if img_fin: elements.append(img_fin)
+    elements.append(Spacer(1, 0.5*inch))
+
+    # Graphique Race (Large)
+    elements.append(Paragraph("2. Croissance par Race (GMQ Moyen)", section_style))
+    img_race = get_image(payload.charts.get('race'))
+    if img_race: elements.append(img_race)
+    
+    # --- PAGE 2 : SANTÉ & RÉPARTITION ---
+    elements.append(PageBreak()) 
+    elements.append(Paragraph("3. Analyse des Coûts Sanitaires", section_style))
+    img_health = get_image(payload.charts.get('health'))
+    if img_health: elements.append(img_health)
+    elements.append(Spacer(1, 0.4*inch))
+
+    elements.append(Paragraph("4. Structure Démographique", section_style))
+    img_demo = get_image(payload.charts.get('demo'), width=4*inch)
+    if img_demo: elements.append(img_demo)
+
+    # --- PAGE 3 : TABLEAUX DÉTAILLÉS ---
+    elements.append(PageBreak())
+    
+    # Style de tableau commun amélioré
+    def get_table_style(main_color, light_color):
+        return TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), main_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e9e2d9")),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_color]),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ])
+
+    elements.append(Paragraph("5. Suivi Sanitaire & Rappels", section_style))
+    if sante_rdv:
+        s_data = [["TAG Animal", "Type d'intervention", "Date de rappel"]]
+        for s in sante_rdv: 
+            s_data.append([s['numero_tag'], s['type'].upper(), s['prochain_rdv'].strftime('%d/%m/%Y')])
+        ts = Table(s_data, colWidths=[1.5*inch, 3*inch, 1.5*inch], repeatRows=1)
+        ts.setStyle(get_table_style(colors.HexColor("#3b82f6"), colors.HexColor("#eff6ff")))
+        elements.append(ts)
+    else:
+        elements.append(Paragraph("Aucun rappel sanitaire en attente.", styles['Normal']))
+
+    elements.append(Spacer(1, 0.4*inch))
+    elements.append(Paragraph("6. État des Gestations en cours", section_style))
+    if gestations:
+        g_data = [["Mère (Tag)", "Vêlage Prévu", "Échéance (Jours)"]]
+        for g in gestations: 
+            g_data.append([g['numero_tag'], g['date_velage_prevue'].strftime('%d/%m/%Y'), f"{g['jours']} j"])
+        tg = Table(g_data, colWidths=[2*inch, 2*inch, 2*inch], repeatRows=1)
+        tg.setStyle(get_table_style(colors.HexColor("#db2777"), colors.HexColor("#fdf2f8")))
+        elements.append(tg)
+    else:
+        elements.append(Paragraph("Aucune gestation enregistrée actuellement.", styles['Normal']))
+
+    elements.append(Spacer(1, 0.6*inch))
+    elements.append(Paragraph("Fin du rapport d'exploitation — Généré par BoviBot AI", styles['Italic']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=bilan_visuel_bovibot.pdf"})
+
+class AnalysisPDFPayload(BaseModel):
+    title: str
+    content: str
+
+@app.post("/api/ai-analysis/pdf")
+def export_analysis_text_pdf(payload: AnalysisPDFPayload):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Styles personnalisés
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor("#7c4f1e"), spaceAfter=30, alignment=0)
+    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=11, leading=16, textColor=colors.black)
+    centered_style = ParagraphStyle('CenteredStyle', parent=styles['Normal'], alignment=1)
+    
+    # En-tête
+    elements.append(Paragraph(f"BOVIBOT AI — {payload.title.upper()}", title_style))
+    elements.append(Paragraph(f"Date du rapport : {datetime.now().strftime('%d/%m/%Y à %H:%M')}", styles['Italic']))
+    elements.append(Spacer(1, 20))
+    
+    # Nettoyage du contenu HTML pour ReportLab (conversion basique)
+    # ReportLab supporte <b>, <i>, <u>, <br/>, <link>, etc.
+    text = payload.content
+    text = text.replace('<br>', '<br/>')
+    text = text.replace('<strong class="text-primary-dark font-black uppercase text-xs block mt-4 mb-2 tracking-widest">', '<br/><br/><b>')
+    text = text.replace('</strong>', '</b>')
+    text = text.replace('<li class="ml-4 list-disc text-slate-600 mb-1">', ' • ')
+    text = text.replace('</li>', '<br/>')
+    
+    # On enlève les autres tags HTML potentiels
+    clean_text = re.sub(r'<[^>]+>', '', text) if '<b>' not in text else text
+    
+    elements.append(Paragraph(text, body_style))
+    elements.append(Spacer(1, 40))
+    elements.append(Paragraph("--- Fin du rapport stratégique ---", centered_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=analyse_strategique_bovibot.pdf"})
+
+
+@app.get("/api/animaux/{animal_id}/genealogie")
+def get_animal_genealogie(animal_id: int):
+    # 1. L'animal et ses parents avec stats
+    root = execute_query("""
+        SELECT a.id, a.numero_tag, a.nom, a.sexe, a.mere_id, a.pere_id,
+               fn_gmq(a.id) as gmq, fn_rentabilite_estimee(a.id) as rentabilite,
+               m.numero_tag as mere_tag, m.nom as mere_nom, m.mere_id as grand_mere_mat_id, m.pere_id as grand_pere_mat_id,
+               p.numero_tag as pere_tag, p.nom as pere_nom, p.mere_id as grand_mere_pat_id, p.pere_id as grand_pere_pat_id
+        FROM animaux a
+        LEFT JOIN animaux m ON a.mere_id = m.id
+        LEFT JOIN animaux p ON a.pere_id = p.id
+        WHERE a.id = %s
+    """, [animal_id])
+    
+    if not root: return {"error": "Animal non trouvé"}
+    animal = root[0]
+
+    # 2. Grands-parents avec stats
+    grand_parents = execute_query("""
+        SELECT id, numero_tag, nom, sexe, mere_id, pere_id,
+               fn_gmq(id) as gmq, fn_rentabilite_estimee(id) as rentabilite 
+        FROM animaux 
+        WHERE id IN (%s, %s, %s, %s)
+    """, [animal['grand_mere_mat_id'], animal['grand_pere_mat_id'], animal['grand_mere_pat_id'], animal['grand_pere_pat_id']])
+
+    # 3. Enfants avec stats
+    offspring = execute_query("""
+        SELECT id, numero_tag, nom, sexe, mere_id, pere_id,
+               fn_gmq(id) as gmq, fn_rentabilite_estimee(id) as rentabilite 
+        FROM animaux 
+        WHERE mere_id = %s OR pere_id = %s
+    """, [animal_id, animal_id])
+
+    return {
+        "animal": animal,
+        "grand_parents": grand_parents,
+        "offspring": offspring
+    }
+
+@app.get("/api/animaux/{animal_id}/fiche-pdf")
+def export_animal_fiche_pdf(animal_id: int):
+    # 1. Récupération des données complètes
+    animal_data = execute_query("""
+        SELECT a.*, r.nom as race_nom,
+               m.numero_tag as mere_tag, p.numero_tag as pere_tag,
+               fn_age_en_mois(a.id) as age_mois,
+               fn_gmq(a.id) as gmq,
+               fn_cout_total_elevage(a.id) as cout_total,
+               fn_rentabilite_estimee(a.id) as rentabilite
+        FROM animaux a
+        LEFT JOIN races r ON a.race_id = r.id
+        LEFT JOIN animaux m ON a.mere_id = m.id
+        LEFT JOIN animaux p ON a.pere_id = p.id
+        WHERE a.id = %s
+    """, [animal_id])
+
+    if not animal_data:
+        raise HTTPException(status_code=404, detail="Animal non trouvé")
+    
+    a = animal_data[0]
+    pesees = execute_query("SELECT * FROM pesees WHERE animal_id = %s ORDER BY date_pesee DESC LIMIT 10", [animal_id])
+    actes = execute_query("SELECT * FROM sante WHERE animal_id = %s ORDER BY date_acte DESC LIMIT 10", [animal_id])
+    lait = execute_query("SELECT * FROM production_lait WHERE animal_id = %s ORDER BY date_traite DESC LIMIT 10", [animal_id])
+
+    # 2. Génération du PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Titre
+    elements.append(Paragraph(f"FICHE INDIVIDUELLE : {a['numero_tag']} ({a['nom'] or 'Sans nom'})", styles['Title']))
+    elements.append(Spacer(1, 12))
+
+    # Identité
+    elements.append(Paragraph("<b>1. IDENTITÉ ET GÉNÉALOGIE</b>", styles['Heading2']))
+    identite_data = [
+        ["Race", a['race_nom'] or "Inconnue", "Sexe", a['sexe']],
+        ["Né le", a['date_naissance'].strftime('%d/%m/%Y'), "Âge", f"{a['age_mois']} mois"],
+        ["Statut", a['statut'].upper(), "Poids actuel", f"{a['poids_actuel']} kg"],
+        ["Mère", a['mere_tag'] or "Inconnue", "Père", a['pere_tag'] or "Inconnu"]
+    ]
+    t_id = Table(identite_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+    t_id.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (0,-1), colors.whitesmoke), ('BACKGROUND', (2,0), (2,-1), colors.whitesmoke)]))
+    elements.append(t_id)
+    elements.append(Spacer(1, 12))
+
+    # Performance
+    elements.append(Paragraph("<b>2. ANALYSE DE PERFORMANCE ET RENTABILITÉ</b>", styles['Heading2']))
+    perf_data = [
+        ["GMQ Global", f"{a['gmq'] or 0} kg/j"],
+        ["Coût total d'élevage", f"{int(a['cout_total'] or 0)} FCFA"],
+        ["Rentabilité estimée", f"{int(a['rentabilite'] or 0)} FCFA"]
+    ]
+    t_perf = Table(perf_data, colWidths=[2.5*inch, 3.5*inch])
+    t_perf.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')]))
+    elements.append(t_perf)
+    elements.append(Spacer(1, 12))
+
+    # Santé (Tableau)
+    elements.append(Paragraph("<b>3. DERNIERS ACTES VÉTÉRINAIRES</b>", styles['Heading2']))
+    if actes:
+        s_data = [["Date", "Type", "Description", "Coût"]]
+        for s in actes: s_data.append([s['date_acte'].strftime('%d/%m/%y'), s['type'], (s['description'][:30]+'...') if len(s['description'])>30 else s['description'], f"{int(s['cout'])} F"])
+        ts = Table(s_data, colWidths=[1*inch, 1.5*inch, 2.5*inch, 1*inch])
+        ts.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0), colors.HexColor("#3b82f6")), ('TEXTCOLOR',(0,0),(-1,0), colors.whitesmoke), ('GRID',(0,0),(-1,-1), 0.5, colors.grey)]))
+        elements.append(ts)
+    else:
+        elements.append(Paragraph("Aucun acte enregistré.", styles['Normal']))
+
+    elements.append(Spacer(1, 20))
+    elements.append(Paragraph("Document généré par l'IA BoviBot — Rapport certifié", styles['Italic']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=fiche_{a['numero_tag']}.pdf"})
+
+@app.get("/api/stocks")
+def get_stocks():
+    return execute_query("SELECT * FROM stocks ORDER BY categorie, nom")
+
+@app.post("/api/production-lait")
+def record_milk(data: dict):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO production_lait (animal_id, date_traite, quantite_litre, periode) VALUES (%s, %s, %s, %s)",
+            (data['animal_id'], data['date'], data['quantite'], data['periode'])
+        )
+        conn.commit()
+        return {"success": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        cursor.close(); conn.close()
 
 @app.get("/health")
 def health():
