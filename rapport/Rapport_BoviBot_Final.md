@@ -343,23 +343,641 @@ Le champ `animal_id` est nullable pour permettre les alertes globales (ex : rapp
 
 ## 5. Éléments PL/SQL — Description et justification métier
 
+Le moteur PL/SQL de BoviBot repose sur **3 procédures stockées**, **4 fonctions**, **4 triggers** et **3 events MySQL Scheduler**. Ces éléments constituent la couche logique métier de la base de données : ils garantissent l'intégrité des données, automatisent les calculs et génèrent les alertes sans intervention humaine.
+
+---
+
 ### 5.1 Procédures stockées
 
-<!-- À rédiger en A-03 -->
+Les procédures stockées encapsulent les opérations d'écriture critiques. Contrairement à un INSERT direct depuis l'application, elles garantissent l'atomicité (START TRANSACTION / COMMIT / ROLLBACK), centralisent les règles métier dans la base et sont les seuls points d'entrée que le LLM peut appeler pour modifier les données.
 
-*[À compléter en étape A-03]*
+---
+
+#### 5.1.1 `sp_enregistrer_pesee`
+
+**Rôle :** Enregistre une pesée, met à jour le poids courant de l'animal, calcule le Gain Moyen Quotidien (GMQ) par rapport à la pesée précédente et insère une alerte si le GMQ est inférieur à 300 g/jour.
+
+**Paramètres :**
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `p_animal_id` | `INT` | Identifiant de l'animal |
+| `p_poids_kg` | `DECIMAL(6,2)` | Poids mesuré en kg |
+| `p_date` | `DATE` | Date de la pesée |
+| `p_agent` | `VARCHAR(100)` | Nom de l'agent ayant effectué la pesée |
+
+**Justification métier :** L'éleveur ne doit pas gérer manuellement la mise à jour du poids courant ni calculer le GMQ. Cette procédure garantit la cohérence des données (`poids_actuel` toujours synchronisé avec la dernière pesée) et automatise la détection des retards de croissance.
+
+**Comportement ACID :**
+- `START TRANSACTION` — tout est annulé si une erreur survient (EXIT HANDLER → ROLLBACK + RESIGNAL).
+- L'INSERT dans `pesees` et l'UPDATE de `poids_actuel` dans `animaux` sont atomiques : ils réussissent ensemble ou échouent ensemble.
+
+**Code commenté :**
+
+```sql
+CREATE PROCEDURE sp_enregistrer_pesee(
+    IN p_animal_id INT,
+    IN p_poids_kg  DECIMAL(6,2),
+    IN p_date      DATE,
+    IN p_agent     VARCHAR(100)
+)
+BEGIN
+    DECLARE v_derniere_pesee DECIMAL(6,2);
+    DECLARE v_jours INT;
+    DECLARE v_gmq   DECIMAL(6,2);
+
+    -- Annule tout si erreur SQL (intégrité référentielle, etc.)
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+        -- 1. Insérer la pesée dans l'historique
+        INSERT INTO pesees (animal_id, poids_kg, date_pesee, agent)
+        VALUES (p_animal_id, p_poids_kg, p_date, p_agent);
+
+        -- 2. Mettre à jour le poids courant de l'animal
+        UPDATE animaux SET poids_actuel = p_poids_kg WHERE id = p_animal_id;
+
+        -- 3. Récupérer la pesée précédente pour calculer le GMQ
+        SELECT poids_kg, DATEDIFF(p_date, date_pesee)
+        INTO v_derniere_pesee, v_jours
+        FROM pesees
+        WHERE animal_id = p_animal_id
+          AND date_pesee < p_date
+        ORDER BY date_pesee DESC
+        LIMIT 1;
+
+        -- 4. Insérer une alerte si GMQ < 300 g/jour
+        IF v_derniere_pesee IS NOT NULL AND v_jours > 0 THEN
+            SET v_gmq = (p_poids_kg - v_derniere_pesee) / v_jours;
+            IF v_gmq < 0.3 THEN
+                INSERT INTO alertes (animal_id, type, message, niveau)
+                VALUES (p_animal_id, 'poids',
+                    CONCAT('GMQ faible : ', ROUND(v_gmq * 1000), ' g/jour (seuil : 300 g/jour)'),
+                    'warning');
+            END IF;
+        END IF;
+
+    COMMIT;
+END$$
+```
+
+**Exemple d'appel :**
+
+```sql
+CALL sp_enregistrer_pesee(1, 320.00, '2026-04-12', 'BoviBot');
+```
+
+> Résultat : pesée insérée dans `pesees`, `poids_actuel` de TAG-001 mis à 320 kg. GMQ calculé : si pesée précédente était 305 kg il y a 42 jours → GMQ = 0,357 kg/jour → aucune alerte.
+
+---
+
+#### 5.1.2 `sp_declarer_vente`
+
+**Rôle :** Vérifie que l'animal est actif, enregistre la vente dans la table `ventes` et change le statut de l'animal en `vendu`. Le trigger `trg_historique_statut` archive automatiquement la transition de statut.
+
+**Paramètres :**
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `p_animal_id` | `INT` | Identifiant de l'animal |
+| `p_acheteur` | `VARCHAR(150)` | Nom de l'acheteur |
+| `p_telephone` | `VARCHAR(20)` | Téléphone de l'acheteur |
+| `p_prix` | `DECIMAL(12,2)` | Prix en FCFA |
+| `p_poids_vente` | `DECIMAL(6,2)` | Poids à la vente en kg |
+| `p_date_vente` | `DATE` | Date de la transaction |
+
+**Justification métier :** Empêche la vente d'animaux déjà vendus, morts ou en quarantaine. La vérification du statut avant tout INSERT garantit l'intégrité commerciale (on ne peut pas vendre deux fois le même animal).
+
+**Comportement ACID :** Même pattern que `sp_enregistrer_pesee`. En cas d'animal non actif, un `SIGNAL SQLSTATE '45000'` lève une exception métier qui déclenche le ROLLBACK automatique.
+
+**Code commenté :**
+
+```sql
+CREATE PROCEDURE sp_declarer_vente(
+    IN p_animal_id   INT,
+    IN p_acheteur    VARCHAR(150),
+    IN p_telephone   VARCHAR(20),
+    IN p_prix        DECIMAL(12,2),
+    IN p_poids_vente DECIMAL(6,2),
+    IN p_date_vente  DATE
+)
+BEGIN
+    DECLARE v_statut VARCHAR(20);
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+        -- 1. Vérifier que l'animal est en statut 'actif'
+        SELECT statut INTO v_statut
+        FROM animaux
+        WHERE id = p_animal_id;
+
+        IF v_statut != 'actif' THEN
+            -- Erreur métier : annule la transaction
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Cet animal ne peut pas être vendu (statut non actif)';
+        END IF;
+
+        -- 2. Enregistrer la vente
+        INSERT INTO ventes (animal_id, acheteur, telephone_acheteur, date_vente, poids_vente_kg, prix_fcfa)
+        VALUES (p_animal_id, p_acheteur, p_telephone, p_date_vente, p_poids_vente, p_prix);
+
+        -- 3. Changer le statut (déclenche trg_historique_statut)
+        UPDATE animaux SET statut = 'vendu' WHERE id = p_animal_id;
+
+    COMMIT;
+END$$
+```
+
+**Exemple d'appel :**
+
+```sql
+CALL sp_declarer_vente(3, 'Oumar Ba', '771234567', 280000.00, 195.00, '2026-04-12');
+```
+
+> Résultat : vente de TAG-003 (Samba) enregistrée. Statut passe de `actif` à `vendu`. La transition est archivée dans `historique_statut` par le trigger.
+
+---
+
+#### 5.1.3 `sp_rapport_nutritionnel`
+
+**Rôle :** Génère un rapport nutritionnel des 30 derniers jours pour un animal donné : quantité totale consommée, coût total, aliment principal, GMQ actuel et coût par kg de gain. Insère également une alerte informative dans `alertes`.
+
+**Paramètres :**
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `p_animal_id` | `INT` | Identifiant de l'animal à analyser |
+
+**Justification métier :** Permet à l'éleveur d'évaluer le rendement économique de l'alimentation : combien coûte chaque kilogramme de prise de poids ? Ce ratio oriente les décisions d'ajustement des rations.
+
+**Code commenté :**
+
+```sql
+CREATE PROCEDURE sp_rapport_nutritionnel(IN p_animal_id INT)
+BEGIN
+    DECLARE v_quantite_totale DECIMAL(10,2);
+    DECLARE v_cout_total      DECIMAL(12,2);
+    DECLARE v_aliment_principal VARCHAR(100);
+    DECLARE v_gmq             DECIMAL(6,3);
+    DECLARE v_cout_par_kg_gain DECIMAL(12,2) DEFAULT 0;
+
+    -- 1. Consommation et coût sur les 30 derniers jours
+    SELECT SUM(quantite_kg), SUM(quantite_kg * cout_unitaire_kg)
+    INTO v_quantite_totale, v_cout_total
+    FROM alimentation
+    WHERE animal_id = p_animal_id
+      AND date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
+
+    -- 2. Aliment le plus distribué (en poids)
+    SELECT type_aliment INTO v_aliment_principal
+    FROM alimentation
+    WHERE animal_id = p_animal_id
+      AND date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY type_aliment
+    ORDER BY SUM(quantite_kg) DESC
+    LIMIT 1;
+
+    -- 3. Calcul du coût par kg de gain
+    SET v_gmq = fn_gmq(p_animal_id);
+    IF v_gmq > 0 THEN
+        SET v_cout_par_kg_gain = (v_cout_total / 30) / v_gmq;
+    END IF;
+
+    -- 4. Alerte informative dans la table alertes
+    IF v_quantite_totale IS NOT NULL THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (p_animal_id, 'alimentation',
+            CONCAT('Rapport 30j: ', ROUND(v_quantite_totale,1), 'kg (',
+                   v_aliment_principal, '). Coût: ', ROUND(v_cout_total,0), ' FCFA.'),
+            'info');
+    END IF;
+
+    -- 5. Retourner les indicateurs
+    SELECT
+        v_quantite_totale    AS quantite_totale_30j,
+        v_cout_total         AS cout_total_30j,
+        v_aliment_principal  AS aliment_principal,
+        v_gmq                AS gmq_actuel,
+        v_cout_par_kg_gain   AS cout_kg_gain;
+END$$
+```
+
+**Exemple d'appel :**
+
+```sql
+CALL sp_rapport_nutritionnel(1);
+-- TAG-001 (Baaba) : 240 kg de foin sur 30j, coût 36 000 FCFA,
+-- GMQ 0.500 kg/jour → coût/kg gain = 2 400 FCFA/kg
+```
+
+---
 
 ### 5.2 Fonctions
 
-*[À compléter en étape A-03]*
+Les fonctions PL/SQL encapsulent les calculs métier récurrents. Le LLM les invoque systématiquement dans les requêtes SQL (règle du SYSTEM_PROMPT : interdiction de recalculer l'âge ou le GMQ en dehors des fonctions dédiées).
+
+---
+
+#### 5.2.1 `fn_age_en_mois`
+
+**Retourne :** `INT` — âge de l'animal en mois entiers.
+
+**Formule :** `TIMESTAMPDIFF(MONTH, date_naissance, CURDATE())`
+
+**Utilisation :** Toute requête impliquant l'âge (filtrage veaux < 6 mois, classement par tranche d'âge, trigger `trg_alerte_poids_faible`).
+
+```sql
+CREATE FUNCTION fn_age_en_mois(p_animal_id INT)
+RETURNS INT
+READS SQL DATA
+BEGIN
+    DECLARE v_date_naissance DATE;
+    SELECT date_naissance INTO v_date_naissance FROM animaux WHERE id = p_animal_id;
+    RETURN TIMESTAMPDIFF(MONTH, v_date_naissance, CURDATE());
+END$$
+```
+
+**Exemple d'utilisation :**
+
+```sql
+-- Lister tous les animaux actifs avec leur âge
+SELECT numero_tag, nom, fn_age_en_mois(id) AS age_mois
+FROM animaux
+WHERE statut = 'actif'
+ORDER BY age_mois;
+```
+
+---
+
+#### 5.2.2 `fn_gmq`
+
+**Retourne :** `DECIMAL(6,3)` — Gain Moyen Quotidien en kg/jour sur l'ensemble de l'historique de pesées.
+
+**Formule :** `(poids_dernière_pesée − poids_première_pesée) / nombre_de_jours`
+
+**Utilisation :** Analyse de croissance, classement du troupeau, identification des animaux sous-performants.
+
+```sql
+CREATE FUNCTION fn_gmq(p_animal_id INT)
+RETURNS DECIMAL(6,3)
+READS SQL DATA
+BEGIN
+    DECLARE v_premiere_pesee DECIMAL(6,2);
+    DECLARE v_derniere_pesee DECIMAL(6,2);
+    DECLARE v_premiere_date  DATE;
+    DECLARE v_derniere_date  DATE;
+    DECLARE v_jours INT;
+
+    -- Première pesée (poids de départ)
+    SELECT poids_kg, date_pesee INTO v_premiere_pesee, v_premiere_date
+    FROM pesees WHERE animal_id = p_animal_id ORDER BY date_pesee ASC LIMIT 1;
+
+    -- Dernière pesée (poids actuel mesuré)
+    SELECT poids_kg, date_pesee INTO v_derniere_pesee, v_derniere_date
+    FROM pesees WHERE animal_id = p_animal_id ORDER BY date_pesee DESC LIMIT 1;
+
+    SET v_jours = DATEDIFF(v_derniere_date, v_premiere_date);
+
+    -- Retourner 0 si une seule pesée ou aucune
+    IF v_jours = 0 OR v_premiere_pesee IS NULL THEN
+        RETURN 0;
+    END IF;
+
+    RETURN (v_derniere_pesee - v_premiere_pesee) / v_jours;
+END$$
+```
+
+**Exemple d'utilisation :**
+
+```sql
+-- Animaux avec GMQ inférieur à 0.3 kg/jour
+SELECT a.numero_tag, a.nom, fn_gmq(a.id) AS gmq
+FROM animaux a
+WHERE a.statut = 'actif'
+HAVING gmq < 0.3;
+```
+
+---
+
+#### 5.2.3 `fn_cout_total_elevage`
+
+**Retourne :** `DECIMAL(12,2)` — coût total d'élevage d'un animal en FCFA (alimentation + soins vétérinaires).
+
+**Formule :** `SUM(quantite_kg × cout_unitaire_kg) + SUM(cout_sante)`
+
+```sql
+CREATE FUNCTION fn_cout_total_elevage(p_animal_id INT)
+RETURNS DECIMAL(12,2)
+READS SQL DATA
+BEGIN
+    DECLARE v_alim  DECIMAL(12,2) DEFAULT 0;
+    DECLARE v_sante DECIMAL(12,2) DEFAULT 0;
+
+    SELECT COALESCE(SUM(quantite_kg * cout_unitaire_kg), 0) INTO v_alim
+    FROM alimentation WHERE animal_id = p_animal_id;
+
+    SELECT COALESCE(SUM(cout), 0) INTO v_sante
+    FROM sante WHERE animal_id = p_animal_id;
+
+    RETURN v_alim + v_sante;
+END$$
+```
+
+**Exemple d'utilisation :**
+
+```sql
+-- Coût total d'élevage par animal actif
+SELECT numero_tag, nom, fn_cout_total_elevage(id) AS cout_total_fcfa
+FROM animaux
+WHERE statut = 'actif'
+ORDER BY cout_total_fcfa DESC;
+```
+
+---
+
+#### 5.2.4 `fn_rentabilite_estimee`
+
+**Retourne :** `DECIMAL(12,2)` — rentabilité estimée en FCFA = valeur marchande au kilo vif moins le coût total d'élevage.
+
+**Formule :** `(poids_actuel × 1 300 FCFA/kg) − fn_cout_total_elevage(animal_id)`
+
+Le prix de référence de 1 300 FCFA/kg correspond au cours moyen du bétail sur pied au marché de Dakar.
+
+```sql
+CREATE FUNCTION fn_rentabilite_estimee(p_animal_id INT)
+RETURNS DECIMAL(12,2)
+READS SQL DATA
+BEGIN
+    DECLARE v_poids      DECIMAL(6,2);
+    DECLARE v_cout_total DECIMAL(12,2);
+    DECLARE v_prix_marche_kg DECIMAL(6,2) DEFAULT 1300.00;
+
+    SELECT poids_actuel INTO v_poids FROM animaux WHERE id = p_animal_id;
+    SET v_cout_total = fn_cout_total_elevage(p_animal_id);
+
+    IF v_poids IS NULL OR v_cout_total IS NULL THEN
+        RETURN 0;
+    END IF;
+
+    RETURN (v_poids * v_prix_marche_kg) - v_cout_total;
+END$$
+```
+
+**Exemple d'utilisation :**
+
+```sql
+-- Top 3 des animaux les plus rentables à vendre aujourd'hui
+SELECT numero_tag, nom, poids_actuel,
+       fn_rentabilite_estimee(id) AS rentabilite_fcfa
+FROM animaux
+WHERE statut = 'actif'
+ORDER BY rentabilite_fcfa DESC
+LIMIT 3;
+```
+
+---
 
 ### 5.3 Triggers
 
-*[À compléter en étape A-03]*
+Les triggers assurent la réactivité du système : ils s'exécutent automatiquement lors d'événements de base de données, sans intervention de l'application ni du LLM.
+
+---
+
+#### 5.3.1 `trg_historique_statut`
+
+| Propriété | Valeur |
+|---|---|
+| Événement | `BEFORE UPDATE ON animaux` |
+| Condition | `OLD.statut != NEW.statut` |
+| Action | INSERT dans `historique_statut` |
+
+**Justification :** Toute modification du champ `statut` est archivée avant d'être appliquée. Ce trigger est la seule source d'écriture dans `historique_statut`, ce qui garantit l'exhaustivité de l'audit.
+
+```sql
+CREATE TRIGGER trg_historique_statut
+BEFORE UPDATE ON animaux
+FOR EACH ROW
+BEGIN
+    IF OLD.statut != NEW.statut THEN
+        INSERT INTO historique_statut (animal_id, ancien_statut, nouveau_statut)
+        VALUES (OLD.id, OLD.statut, NEW.statut);
+    END IF;
+END$$
+```
+
+**Cas déclencheur :** `CALL sp_declarer_vente(3, ...)` → UPDATE statut de `actif` à `vendu` → trigger s'exécute → ligne insérée dans `historique_statut` avec horodatage.
+
+---
+
+#### 5.3.2 `trg_alerte_vaccination`
+
+| Propriété | Valeur |
+|---|---|
+| Événement | `AFTER INSERT ON sante` |
+| Condition | `prochain_rdv IS NOT NULL AND prochain_rdv < CURDATE()` |
+| Action | INSERT alerte CRITICAL dans `alertes` |
+
+**Justification :** Un rappel de vaccination déjà dépassé au moment de la saisie indique un oubli avéré. L'alerte de niveau CRITICAL s'affiche immédiatement sur le tableau de bord.
+
+```sql
+CREATE TRIGGER trg_alerte_vaccination
+AFTER INSERT ON sante
+FOR EACH ROW
+BEGIN
+    IF NEW.prochain_rdv IS NOT NULL AND NEW.prochain_rdv < CURDATE() THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (NEW.animal_id, 'vaccination',
+            CONCAT('Rappel vaccination en retard depuis le ', NEW.prochain_rdv),
+            'critical');
+    END IF;
+END$$
+```
+
+**Cas déclencheur :** Saisie d'un acte de santé avec `prochain_rdv = '2025-12-01'` le 2026-04-12 → alerte critique générée automatiquement.
+
+---
+
+#### 5.3.3 `trg_alerte_poids_faible`
+
+| Propriété | Valeur |
+|---|---|
+| Événement | `AFTER INSERT ON pesees` |
+| Condition | `fn_age_en_mois(animal_id) <= 6 AND poids_kg < 60` |
+| Action | INSERT alerte CRITICAL dans `alertes` |
+
+**Justification :** Un veau de moins de 6 mois pesant moins de 60 kg présente un risque vital immédiat (dénutrition, maladie). L'alerte critique permet une intervention vétérinaire rapide.
+
+```sql
+CREATE TRIGGER trg_alerte_poids_faible
+AFTER INSERT ON pesees
+FOR EACH ROW
+BEGIN
+    DECLARE v_age_mois INT;
+    SELECT fn_age_en_mois(NEW.animal_id) INTO v_age_mois;
+    IF v_age_mois <= 6 AND NEW.poids_kg < 60 THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (NEW.animal_id, 'poids',
+            CONCAT('Poids critique pour un veau de ', v_age_mois,
+                   ' mois : ', NEW.poids_kg, ' kg'),
+            'critical');
+    END IF;
+END$$
+```
+
+**Cas déclencheur :** Pesée de TAG-006 (né le 2025-11-01, 5 mois) à 45 kg → alerte critique : *"Poids critique pour un veau de 5 mois : 45 kg"*.
+
+---
+
+#### 5.3.4 `trg_alerte_pesee_manquante`
+
+| Propriété | Valeur |
+|---|---|
+| Événement | `AFTER INSERT ON pesees` |
+| Condition | Animal actif sans pesée depuis > 30 jours |
+| Action | INSERT alerte WARNING dans `alertes` (anti-doublon journalier) |
+
+**Justification :** À chaque nouvelle pesée saisie, le système vérifie l'ensemble du troupeau et signale les animaux oubliés. Cela transforme chaque saisie en opportunité de contrôle global.
+
+```sql
+CREATE TRIGGER trg_alerte_pesee_manquante
+AFTER INSERT ON pesees
+FOR EACH ROW
+BEGIN
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    SELECT a.id, 'poids',
+           CONCAT('Pesée manquante depuis > 30 jours : ', a.numero_tag),
+           'warning'
+    FROM animaux a
+    WHERE a.statut = 'actif'
+      AND NOT EXISTS (
+          SELECT 1 FROM pesees p
+          WHERE p.animal_id = a.id
+            AND p.date_pesee >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      )
+      AND NOT EXISTS (
+          -- Anti-doublon : pas deux alertes du même type le même jour
+          SELECT 1 FROM alertes al
+          WHERE al.animal_id = a.id
+            AND al.type = 'poids'
+            AND al.message LIKE 'Pesée manquante%'
+            AND DATE(al.date_creation) = CURDATE()
+      );
+END$$
+```
+
+---
 
 ### 5.4 Events MySQL Scheduler
 
-*[À compléter en étape A-03]*
+Les events s'exécutent de façon autonome selon une planification définie. Ils sont activés par `SET GLOBAL event_scheduler = ON` au démarrage de MySQL.
+
+---
+
+#### 5.4.1 `evt_alerte_velages`
+
+| Propriété | Valeur |
+|---|---|
+| Fréquence | Quotidienne (`EVERY 1 DAY`) |
+| Logique | Gestations prévues dans les 7 prochains jours → alerte INFO par animal |
+| Anti-doublon | Vérifie qu'aucune alerte du même type n'existe déjà pour le jour courant |
+
+**Justification :** Un vêlage nécessite une préparation (box propre, matériel, vétérinaire préavisé). 7 jours d'anticipation est le délai minimal pour organiser les conditions d'accueil.
+
+```sql
+CREATE EVENT evt_alerte_velages
+ON SCHEDULE EVERY 1 DAY
+STARTS CURRENT_TIMESTAMP
+DO
+BEGIN
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    SELECT r.mere_id, 'velage',
+        CONCAT('Vêlage prévu dans ',
+               DATEDIFF(r.date_velage_prevue, CURDATE()),
+               ' jour(s) : ', a.numero_tag),
+        'info'
+    FROM reproduction r
+    JOIN animaux a ON r.mere_id = a.id
+    WHERE r.statut = 'en_gestation'
+      AND r.date_velage_prevue BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+      AND NOT EXISTS (
+          SELECT 1 FROM alertes al
+          WHERE al.animal_id = r.mere_id
+            AND al.type = 'velage'
+            AND DATE(al.date_creation) = CURDATE()
+      );
+END$$
+```
+
+---
+
+#### 5.4.2 `evt_rapport_croissance`
+
+| Propriété | Valeur |
+|---|---|
+| Fréquence | Hebdomadaire (`EVERY 1 WEEK`) |
+| Logique | Compte les animaux actifs → insère un résumé global dans `alertes` |
+
+**Justification :** Un rapport hebdomadaire automatique fournit à l'éleveur un tableau de bord de synthèse sans aucune action de sa part. Il est visible dans l'onglet Alertes du dashboard.
+
+```sql
+CREATE EVENT evt_rapport_croissance
+ON SCHEDULE EVERY 1 WEEK
+STARTS CURRENT_TIMESTAMP
+DO
+BEGIN
+    DECLARE v_nb_animaux INT;
+
+    SELECT COUNT(*) INTO v_nb_animaux FROM animaux WHERE statut = 'actif';
+
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    VALUES (NULL, 'autre',
+        CONCAT('Rapport hebdo : ', v_nb_animaux,
+               ' animaux actifs. Consultez le tableau de bord pour les détails.'),
+        'info');
+END$$
+```
+
+---
+
+#### 5.4.3 `evt_alerte_cout_mensuel`
+
+| Propriété | Valeur |
+|---|---|
+| Fréquence | Mensuelle (`EVERY 1 MONTH`) |
+| Logique | Somme le coût d'alimentation du mois écoulé → insère un bilan dans `alertes` |
+
+**Justification :** Le coût d'alimentation est la principale charge variable d'un élevage. Un bilan mensuel automatique permet à l'éleveur de détecter rapidement une dérive budgétaire.
+
+```sql
+CREATE EVENT evt_alerte_cout_mensuel
+ON SCHEDULE EVERY 1 MONTH
+STARTS '2026-04-01 00:00:00'
+DO
+BEGIN
+    DECLARE v_total DECIMAL(12,2);
+
+    SELECT SUM(quantite_kg * cout_unitaire_kg) INTO v_total
+    FROM alimentation
+    WHERE date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH);
+
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    VALUES (NULL, 'autre',
+        CONCAT('Bilan mensuel alimentation : ',
+               COALESCE(ROUND(v_total, 0), 0), ' FCFA.'),
+        'info');
+END$$
+```
 
 ---
 
