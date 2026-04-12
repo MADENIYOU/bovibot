@@ -1,6 +1,6 @@
 ---
 title: "BoviBot — Gestion d'Élevage Bovin avec IA et PL/SQL"
-author: "Sall · Ndoye · Kane · Barro — ESP/UCAD DIC2"
+author: "Mouhamadou Madeniyou Sall · Anna Ndoye · Abdoul Aziz Kane · Fatoumata Barro — ESP/UCAD DIC2"
 date: "Avril 2026"
 ---
 
@@ -324,7 +324,7 @@ La base de données BoviBot est construite autour de **11 tables** couvrant l'in
 
 Le MCD ci-dessous représente les entités métier et leurs associations avant toute traduction en tables relationnelles. Il met en évidence les cardinalités et la relation réflexive de généalogie sur l'entité **ANIMAL**.
 
-![MCD BoviBot](docs/MCD_BoviBot.png)
+![MCD BoviBot](../docs/MCD_BoviBot.png)
 
 **Entités principales :**
 - **RACE** — référentiel stable des races bovines.
@@ -345,7 +345,7 @@ Le MCD ci-dessous représente les entités métier et leurs associations avant t
 
 Le MLD traduit le MCD en schéma relationnel. Les clés étrangères matérialisent les associations, et les contraintes d'intégrité référentielle sont définies explicitement.
 
-![MLD BoviBot](docs/MLD_BoviBot.png)
+![MLD BoviBot](../docs/MLD_BoviBot.png)
 
 **Justifications des choix de modélisation non-triviaux :**
 
