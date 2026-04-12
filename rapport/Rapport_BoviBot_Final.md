@@ -983,25 +983,322 @@ END$$
 
 ## 6. Architecture technique
 
-<!-- À rédiger en A-04 -->
+### 6.1 Vue d'ensemble
 
-*[À compléter en étape A-04]*
+BoviBot repose sur une **architecture trois tiers containerisée**, déployée sur un VPS Ubuntu 22.04. Trois services Docker communiquent sur un réseau interne isolé — la base de données n'est jamais exposée directement sur l'internet.
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                        VPS (Ubuntu 22.04)                        │
+│                                                                   │
+│  ┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐  │
+│  │   NGINX     │    │    FASTAPI       │    │   MySQL 8.0     │  │
+│  │ (Port 8080) │───▶│  (Port 8002)     │───▶│  (Port 3306)    │  │
+│  │             │    │                  │    │                 │  │
+│  │ Reverse     │    │ • 29 Routes REST │    │ • 11 Tables     │  │
+│  │ Proxy       │    │ • LLM Orches.    │    │ • 4 Fonctions   │  │
+│  │ CORS        │    │ • PL/SQL calls   │    │ • 4 Triggers    │  │
+│  │ Statiques   │    │ • validate_sql() │    │ • 3 Events      │  │
+│  └─────────────┘    └──────────────────┘    │ • 3 Procédures  │  │
+│         │                                   └─────────────────┘  │
+│  ┌──────▼──────────────────────────────────────────────────────┐  │
+│  │                   FRONTEND (HTML/CSS/JS)                    │  │
+│  │  index.html · chat.html · troupeau.html · sante.html        │  │
+│  │  genealogie.html · gestation.html · reports.html            │  │
+│  │  settings.html · stocks.html                               │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Rôle de chaque couche
+
+| Couche | Technologie | Rôle |
+|:---|:---|:---|
+| Présentation | HTML / CSS / JavaScript | Tableau de bord, interface de chat, gestion des alertes, généalogie, rapports |
+| Proxy | Nginx (port 8080) | Reverse proxy, élimination CORS, service des fichiers statiques du frontend |
+| Application | Python FastAPI (port 8002) | API REST (29 routes), orchestration LLM, appel des procédures stockées, validation SQL |
+| Intelligence | OpenAI gpt-4o-mini | Text-to-SQL, détection d'intention (query / action / info), génération de réponses |
+| Données | MySQL 8.x + Event Scheduler | Stockage persistant, PL/SQL, triggers, events automatisés |
+
+### 6.3 Réseau Docker interne
+
+Les services communiquent sur un réseau Docker dédié (`bovibot_network`). La base de données n'est **jamais exposée** sur un port public — seul le backend y accède via le nom de service Docker (`db:3306`).
+
+```
+Internet ──▶ Nginx (8080 → 80) ──▶ backend:8002 ──▶ db:3306
+                    │
+                    └──▶ /frontend/** (fichiers statiques servis directement)
+```
+
+**Choix techniques Docker :**
+- Image backend : `python:3.11-slim` — empreinte minimale pour la production.
+- Dépendance santé : `depends_on: db: condition: service_healthy` — le backend ne démarre qu'une fois MySQL prêt à accepter des connexions.
+- Volume persistant `mysql_data` — les données survivent aux redémarrages de conteneurs.
+- Variables sensibles (`DB_PASSWORD`, `LLM_API_KEY`) injectées via fichier `.env` non versionné.
+
+### 6.4 Flux de traitement d'une requête
+
+```
+Utilisateur (navigateur)
+        │
+        ▼
+   [1] Saisie dans chat.html
+        │
+        ▼
+   [2] POST /api/chat → FastAPI
+        │ sanitize_input() — détection prompt injection
+        ▼
+   [3] ask_llm() → OpenAI gpt-4o-mini
+        │ SYSTEM_PROMPT + schéma BDD + historique (6 derniers messages)
+        ▼
+   [4] LLM retourne JSON { type, sql | action, params }
+        │
+        ├─ type="query"  → validate_sql() → execute_query() → MySQL SELECT
+        │
+        └─ type="action" → confirmation affichée à l'utilisateur
+                │ (après "Oui")
+                └──▶ execute_procedure() → CALL sp_*(...)  → MySQL
+        │
+        ▼
+   [5] FastAPI renvoie la réponse formatée → chat.html l'affiche
+```
+
+### 6.5 Infrastructure de production
+
+| Élément | Configuration |
+|:---|:---|
+| OS | Ubuntu 22.04 LTS |
+| RAM | 2 Go minimum |
+| CPU | 1 vCPU |
+| Stockage | 20 Go SSD |
+| Ports publics | 80 (HTTP via Nginx sur 8080) |
+| MySQL | 8.0 — Event Scheduler activé (`SET GLOBAL event_scheduler = ON`) |
+| Déploiement | `docker compose up -d --build` |
 
 ---
 
 ## 7. Prompt Engineering et intégration LLM
 
-### 7.1 Stratégie de prompting (Few-Shot à 4 piliers)
+Le cœur de BoviBot est un compilateur de langage naturel vers SQL/PL-SQL. La stratégie retenue est le **Few-Shot Prompting à 4 piliers** (4 blocs structurés dans le SYSTEM_PROMPT), implémentée dans `app.py` via la fonction `get_system_prompt()`.
 
-*[À compléter en étape A-05]*
+### 7.1 Stratégie de prompting — Les 4 piliers
+
+#### Pilier 1 (BLOC 1) — Format de réponse obligatoire
+
+Le LLM répond **exclusivement en JSON pur** (zéro Markdown), ce qui garantit l'interopérabilité directe avec le backend FastAPI qui parse la réponse sans post-traitement :
+
+```
+Consultation → {"type":"query",  "sql":"SELECT ...", "explication":"..."}
+Action       → {"type":"action", "action":"nom_proc", "params":{...}, "confirmation":"..."}
+Info/Manque  → {"type":"info",   "sql":null, "explication":"..."}
+```
+
+#### Pilier 2 (BLOC 2) — Règles SQL et abstraction PL/SQL
+
+Trois règles absolues encadrent la génération SQL :
+1. Filtrer `statut='actif'` par défaut, sauf demande explicite.
+2. **Utilisation obligatoire des fonctions PL/SQL** — toute requête impliquant l'âge, le GMQ, le coût ou la rentabilité doit passer par `fn_age_en_mois()`, `fn_gmq()`, `fn_cout_total_elevage()` ou `fn_rentabilite_estimee()`. Aucun calcul maison en SQL brut n'est autorisé.
+3. Interdiction absolue de `DELETE`, `DROP`, `INSERT` directs. Limite de 100 résultats.
+
+#### Pilier 3 (BLOC 3) — Procédures disponibles et mots-clés déclencheurs
+
+Le LLM connaît les 3 procédures stockées avec leurs signatures exactes et les mots-clés qui les activent :
+
+| Procédure | Mots-clés déclencheurs |
+|:---|:---|
+| `sp_enregistrer_pesee` | "enregistre pesée", "pèse", "nouveau poids", "pesée de" |
+| `sp_declarer_vente` | "déclare vente", "vends", "cède l'animal", "vendu à" |
+| `sp_rapport_nutritionnel` | "rapport nutritionnel", "consommation", "ration", "combien il mange" |
+
+Les dates dans les paramètres JSON sont toujours au format `YYYY-MM-DD` (jamais `CURDATE()` dans les params — le backend injecte la date courante si nécessaire).
+
+#### Pilier 4 (BLOC 4) — Résolution des identifiants et gestion de l'ambiguïté
+
+L'éleveur utilise les `numero_tag` (ex : TAG-001), pas les `id` internes. Ce bloc règle la traduction :
+- En consultation : jointure ou `WHERE numero_tag = 'TAG-XXX'`.
+- En action : le LLM passe le `numero_tag` directement comme valeur `animal_id` ; le backend résout l'ID en base.
+- Si l'animal est inconnu ou l'information manquante → type `info` + question de clarification.
+
+**Interdiction explicite des sous-requêtes dans les paramètres** (`animal_id: "(SELECT id ...)"` est bloqué — uniquement des valeurs scalaires).
 
 ### 7.2 SYSTEM_PROMPT final
 
-*[À compléter en étape A-05]*
+Voici le SYSTEM_PROMPT complet tel qu'implémenté dans `app.py` :
+
+```
+Tu es BoviBot, l'assistant IA expert d'un élevage bovin.
+Tu aides l'éleveur à gérer son troupeau en traduisant ses demandes en SQL ou en actions.
+Nous sommes le {today}.
+
+[DB_SCHEMA — schéma annoté des 11 tables + fonctions + procédures]
+
+### BLOC 1 — FORMAT DE RÉPONSE OBLIGATOIRE
+Réponds exclusivement en JSON pur, sans markdown.
+- Consultation : {"type":"query", "sql":"SELECT ...", "explication":"..."}
+- Action       : {"type":"action", "action":"nom_procedure", "params":{...},
+                  "explication":"...", "confirmation":"..."}
+- Info         : {"type":"info", "sql":null, "explication":"..."}
+
+### BLOC 2 — RÈGLES SQL
+- Filtrer statut='actif' par défaut sauf demande explicite.
+- Utiliser fn_age_en_mois(a.id), fn_gmq(a.id), fn_cout_total_elevage(a.id)
+  et fn_rentabilite_estimee(a.id).
+- Pour le lait : production_lait. Pour les stocks : stocks.
+- Pour la généalogie : jointures sur mere_id ou pere_id.
+- Ne jamais générer DELETE ou DROP. Limiter à 100 résultats.
+
+### BLOC 3 — PROCÉDURES DISPONIBLES
+1. sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
+   Mots-clés : "enregistre pesée", "pèse", "nouveau poids", "pesée de"
+2. sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa,
+                     poids_vente_kg, date_vente)
+   Mots-clés : "déclare vente", "vends", "cède l'animal", "vendu à"
+3. sp_rapport_nutritionnel(animal_id)
+   Mots-clés : "rapport nutritionnel", "consommation", "ration",
+               "combien il mange"
+
+IMPORTANT : Les paramètres 'date' doivent être '{today}' ou YYYY-MM-DD.
+Ne jamais mettre CURDATE() dans les params JSON.
+
+### BLOC 4 — RÉSOLUTION DES IDENTIFIANTS
+- Consultation : WHERE numero_tag = 'TAG-XXX'.
+- Action : passe le numero_tag directement comme animal_id.
+  Le backend résoudra l'ID automatiquement.
+- INTERDIT : sous-requêtes SQL comme valeur de paramètre.
+- Si l'animal est inconnu → type 'info' pour demander clarification.
+```
 
 ### 7.3 Exemples de dialogues LLM avec SQL/procédures générées
 
-*[À compléter en étape A-05]*
+#### Dialogue 1 — Consultation globale
+
+**Utilisateur :** *"Liste tous les animaux actifs avec leur âge et GMQ"*
+
+**JSON retourné par le LLM :**
+```json
+{
+  "type": "query",
+  "sql": "SELECT a.numero_tag, a.nom, r.nom AS race, fn_age_en_mois(a.id) AS age_mois, a.poids_actuel, fn_gmq(a.id) AS gmq_kg_jour FROM animaux a LEFT JOIN races r ON a.race_id = r.id WHERE a.statut = 'actif' LIMIT 100",
+  "explication": "Liste complète du troupeau actif avec les indicateurs de croissance."
+}
+```
+
+**Réponse affichée :** Tableau de 7 animaux avec âge en mois et GMQ en kg/jour.
+
+---
+
+#### Dialogue 2 — Filtrage analytique
+
+**Utilisateur :** *"Quels animaux ont un GMQ inférieur à 0.3 kg/jour ?"*
+
+**JSON retourné :**
+```json
+{
+  "type": "query",
+  "sql": "SELECT numero_tag, nom, fn_gmq(id) AS gmq FROM animaux WHERE statut = 'actif' AND fn_gmq(id) < 0.3",
+  "explication": "Identification des animaux présentant une croissance insuffisante."
+}
+```
+
+**Réponse affichée :** *"2 animaux avec GMQ faible : TAG-006 (0.25 kg/j), TAG-007 (0.18 kg/j)"*
+
+---
+
+#### Dialogue 3 — Suivi de reproduction
+
+**Utilisateur :** *"Quelles femelles vêlent dans les 30 prochains jours ?"*
+
+**JSON retourné :**
+```json
+{
+  "type": "query",
+  "sql": "SELECT a.numero_tag, r.date_velage_prevue FROM reproduction r JOIN animaux a ON r.mere_id = a.id WHERE r.statut = 'en_gestation' AND r.date_velage_prevue BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)",
+  "explication": "Liste des mises-bas prévues pour le mois prochain."
+}
+```
+
+**Réponse affichée :** *"TAG-002 (Yaye) — vêlage prévu le 2026-05-10"*
+
+---
+
+#### Dialogue 4 — Action pesée avec confirmation
+
+**Utilisateur :** *"Enregistre une pesée de 325 kg pour TAG-001 aujourd'hui"*
+
+**JSON retourné (étape 1 — attente confirmation) :**
+```json
+{
+  "type": "action",
+  "action": "sp_enregistrer_pesee",
+  "params": {"animal_id": "TAG-001", "poids_kg": 325, "date": "2026-04-12", "agent": "BoviBot"},
+  "confirmation": "Confirmez-vous l'enregistrement d'un poids de 325 kg pour TAG-001 le 2026-04-12 ?"
+}
+```
+
+**Système :** *"Confirmez-vous l'enregistrement d'un poids de 325 kg pour TAG-001 le 2026-04-12 ? (Oui/Non)"*
+
+**Utilisateur :** *"Oui"*
+
+**Backend :** résout TAG-001 → `animal_id = 1`, exécute :
+```sql
+CALL sp_enregistrer_pesee(1, 325.00, '2026-04-12', 'BoviBot');
+```
+
+**Réponse finale :** *"Pesée enregistrée. GMQ actuel : 0.357 kg/jour. Aucune alerte déclenchée."*
+
+---
+
+#### Dialogue 5 — Action vente avec donnée manquante
+
+**Utilisateur :** *"Déclare la vente de TAG-003 à Oumar Ba pour 280 000 FCFA"*
+
+**JSON retourné :**
+```json
+{
+  "type": "info",
+  "sql": null,
+  "explication": "Je vais déclarer la vente, mais pouvez-vous me préciser le poids de l'animal au moment de la vente ?"
+}
+```
+
+**Système :** *"Je vais déclarer la vente, mais pouvez-vous me préciser le poids de l'animal au moment de la vente ?"*
+
+**Utilisateur :** *"195 kg"*
+
+**Backend :** exécute après confirmation :
+```sql
+CALL sp_declarer_vente(3, 'Oumar Ba', NULL, 280000.00, 195.00, '2026-04-12');
+```
+
+**Réponse finale :** *"Vente de TAG-003 (Samba) enregistrée. Statut mis à jour : vendu."*
+
+---
+
+### 7.4 Sécurité — Double protection
+
+#### Couche 1 : `sanitize_input()` — Prompt Injection Guard
+
+Chaque message entrant est analysé avant transmission au LLM. Plus de 26 patterns d'injection sont détectés (regex, insensible à la casse) :
+
+```python
+suspicious_patterns = [
+    r"ignore.*instructions",  r"system prompt",
+    r"tu es maintenant",      r"forget.*previous",
+    r"jailbreak",             r"dan mode",
+    r"contourne",             r"bypass",
+    r"DROP\s+TABLE",          r"api key",
+    r"base64",                r"rot13",
+    r"traduis.*en.*sql",      # ... (26+ patterns)
+]
+```
+
+Toute correspondance lève une `HTTPException(400)` — la requête n'atteint jamais le LLM.
+
+#### Couche 2 : `validate_sql()` — Validation du SQL généré par le LLM
+
+Avant exécution, le SQL produit par le LLM est validé :
+- Doit commencer par `SELECT` (lecture seule).
+- Bloque les mots-clés destructifs : `INSERT`, `UPDATE`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `UNION`, `INTO OUTFILE`, `LOAD_FILE`, `INFORMATION_SCHEMA`, `DUMPFILE`.
 
 ---
 
