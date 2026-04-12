@@ -1,3 +1,9 @@
+---
+title: "BoviBot — Gestion d'Élevage Bovin avec IA et PL/SQL"
+author: "Sall · Ndoye · Kane · Barro — ESP/UCAD DIC2"
+date: "Avril 2026"
+---
+
 # BoviBot — Gestion d'Élevage Bovin avec IA et PL/SQL
 
 ---
@@ -48,20 +54,51 @@
    - 7.1 Stratégie de prompting (Few-Shot à 4 piliers)
    - 7.2 SYSTEM_PROMPT final
    - 7.3 Exemples de dialogues LLM avec SQL/procédures générées
+   - 7.4 Sécurité — Double protection
 8. [Tests](#8-tests)
    - 8.1 Tests cas normaux (5 cas CDC)
-   - 8.2 Tests cas limites (poids critique, vente animal non-actif, injection SQL…)
+   - 8.2 Tests cas limites
 9. [Guide d'installation et de déploiement](#9-guide-dinstallation-et-de-déploiement)
+   - 9.1 Prérequis
+   - 9.2 Installation en 4 commandes
+   - 9.3 Vérifications post-déploiement
+   - 9.4 Activation de l'Event Scheduler MySQL
+   - 9.5 Mise à jour
 10. [Conclusion et perspectives](#10-conclusion-et-perspectives)
+    - 10.1 Bilan des objectifs atteints
+    - 10.2 Limites actuelles
+    - 10.3 Perspectives d'amélioration
 - [Annexe A — Déclaration d'usage de l'IA](#annexe-a--déclaration-dusage-de-lia)
 
 ---
 
 ## 3. Introduction et contexte métier
 
-<!-- À remplir en A-01 (introduction déjà rédigée dans livrables_S1/semaine1.md — à intégrer ici) -->
+### 3.1 Contexte général
 
-*[Section à intégrer depuis `livrables_S1/semaine1.md` — sections 1.1 à 1.4]*
+L'élevage bovin occupe une place centrale dans l'économie rurale sénégalaise. Selon les données du Ministère de l'Élevage, le cheptel bovin national dépasse les 3,5 millions de têtes, constituant une source essentielle de revenus pour les ménages ruraux, de sécurité alimentaire et de capital social. Pourtant, la majorité des exploitations sont gérées de manière informelle, sans outil de suivi structuré, ce qui limite la productivité et l'accès au crédit agricole.
+
+Dans ce contexte, le numérique représente un levier de modernisation à fort impact. La combinaison de bases de données relationnelles avancées et d'assistants intelligents permet d'automatiser le suivi sanitaire, la traçabilité des pesées, la gestion de la reproduction et les alertes critiques — autant de tâches qui reposent aujourd'hui sur la mémoire et les registres papier de l'éleveur.
+
+### 3.2 Présentation du projet BoviBot
+
+BoviBot est une application web de gestion d'élevage bovin développée dans le cadre du cours d'intégration de l'IA et des bases de données avancées (Licence 3, ESP/UCAD). Elle intègre deux composantes techniques complémentaires :
+
+- Un **assistant LLM** (Large Language Model) capable d'interroger la base de données en langage naturel (mode Text-to-SQL) et d'exécuter des actions métier via des procédures stockées, avec confirmation explicite obligatoire.
+- Un **moteur PL/SQL avancé** comprenant des procédures stockées, des fonctions, des triggers et des events MySQL Scheduler qui automatisent les alertes et les calculs de croissance du troupeau.
+
+L'application s'adresse à un éleveur gérant un troupeau mixte : elle permet de consulter l'état du troupeau en langage naturel, d'enregistrer des pesées et des ventes via une interface de chat, et de recevoir des alertes automatiques sur la santé, la vaccination et les vêlages à venir.
+
+### 3.3 Problématique
+
+Comment concevoir un système de gestion d'élevage bovin qui soit à la fois rigoureux sur le plan de la logique métier (intégrité des données, contraintes, automatisations) et accessible à un utilisateur non technicien via une interface conversationnelle en langage naturel ?
+
+### 3.4 Objectifs du projet
+
+- Modéliser une base de données MySQL normalisée couvrant toutes les dimensions de la gestion d'un troupeau bovin.
+- Implémenter les éléments PL/SQL obligatoires : 2 procédures stockées, 2 fonctions, 3 triggers, 2 events (surpassés : 3 procédures, 4 fonctions, 4 triggers, 3 events).
+- Intégrer un assistant LLM capable de générer du SQL à partir de questions en langue naturelle et d'appeler les procédures stockées via une interface de chat, avec double protection contre les injections.
+- Déployer l'application sur une infrastructure accessible en ligne avec tableau de bord, gestion des alertes et interface de chat.
 
 ---
 
@@ -287,7 +324,7 @@ La base de données BoviBot est construite autour de **11 tables** couvrant l'in
 
 Le MCD ci-dessous représente les entités métier et leurs associations avant toute traduction en tables relationnelles. Il met en évidence les cardinalités et la relation réflexive de généalogie sur l'entité **ANIMAL**.
 
-![MCD BoviBot](../docs/MCD_BoviBot.png)
+![MCD BoviBot](docs/MCD_BoviBot.png)
 
 **Entités principales :**
 - **RACE** — référentiel stable des races bovines.
@@ -308,7 +345,7 @@ Le MCD ci-dessous représente les entités métier et leurs associations avant t
 
 Le MLD traduit le MCD en schéma relationnel. Les clés étrangères matérialisent les associations, et les contraintes d'intégrité référentielle sont définies explicitement.
 
-![MLD BoviBot](../docs/MLD_BoviBot.png)
+![MLD BoviBot](docs/MLD_BoviBot.png)
 
 **Justifications des choix de modélisation non-triviaux :**
 
