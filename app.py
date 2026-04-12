@@ -91,7 +91,9 @@ IMPORTANT : Les paramètres 'date' ou 'date_vente' doivent être '{today}' ou un
 ### BLOC 4 — RÉSOLUTION DES IDENTIFIANTS
 - L'éleveur utilise le `numero_tag` (ex: TAG-001).
 - Consultation : Fais une jointure ou un WHERE sur `numero_tag`.
-- Action : Si tu n'as pas l'ID technique (animal_id), retourne un type 'info' demandant de confirmer l'animal ou cherche l'ID via une requête préalable. Ne jamais inventer d'ID.
+- Action : Si tu ne connais pas l'animal_id entier, passe le numero_tag directement comme valeur de animal_id (ex: animal_id: "TAG-006"). Le backend résoudra l'ID automatiquement.
+- INTERDIT : Ne jamais mettre une sous-requête SQL comme valeur de paramètre (ex: animal_id: "(SELECT id FROM animaux WHERE ...)"). Les params doivent contenir uniquement des valeurs scalaires (entier, chaîne, date).
+- Si l'animal n'existe clairement pas dans la conversation, retourne type 'info' pour demander clarification.
 """
 
 
@@ -178,8 +180,53 @@ def execute_query(sql: str, params: list = None):
     finally:
         cursor.close(); conn.close()
 
+def resolve_animal_id(value) -> int:
+    """Résout animal_id en entier. Gère 4 cas produits par le LLM :
+    1. Entier direct                         → retourné tel quel
+    2. Chaîne numérique ("1")               → convertie en int
+    3. numero_tag direct ("TAG-006")         → lookup sécurisé par numero_tag
+    4. Sous-requête SQL ("(SELECT id ...)")  → extraction du numero_tag + lookup
+    """
+    if isinstance(value, int):
+        return value
+    val = str(value).strip()
+    # Cas 2 : chaîne numérique
+    if val.isdigit():
+        return int(val)
+    # Cas 3 : numero_tag direct (ex: "TAG-006")
+    if re.match(r'^TAG-\d+$', val, re.IGNORECASE):
+        tag = val.upper()
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT id FROM animaux WHERE numero_tag = %s", (tag,))
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Animal '{tag}' introuvable dans la base.")
+            return row[0]
+        finally:
+            cursor.close(); conn.close()
+    # Cas 4 : sous-requête SQL — extraire le numero_tag de façon sécurisée (jamais exécuter le SQL brut)
+    match = re.search(r"numero_tag\s*=\s*['\"]([^'\"]+)['\"]", val, re.IGNORECASE)
+    if match:
+        tag = match.group(1)
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT id FROM animaux WHERE numero_tag = %s", (tag,))
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Animal '{tag}' introuvable dans la base.")
+            return row[0]
+        finally:
+            cursor.close(); conn.close()
+    raise HTTPException(status_code=400, detail=f"Identifiant animal invalide : {val}")
+
 def call_procedure(name: str, params: dict):
     """Appelle une procédure stockée PL/SQL"""
+    # Résoudre animal_id si le LLM a passé une sous-requête SQL au lieu d'un entier
+    if "animal_id" in params:
+        params["animal_id"] = resolve_animal_id(params["animal_id"])
     conn = get_db()
     cursor = conn.cursor()
     try:
