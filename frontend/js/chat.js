@@ -223,7 +223,7 @@ function afficherConfirmation(data) {
 }
 
 window.confirmerAction = async function() {
-  if (!pendingAction || isBusy) return;
+  if (!pendingAction) return;
 
   const bubble = document.getElementById('confirmation-bubble');
   if (bubble) bubble.remove();
@@ -282,6 +282,9 @@ window.annulerAction = function() {
   const bubble = document.getElementById('confirmation-bubble');
   if (bubble) bubble.remove();
   pendingAction = null;
+  isBusy = false;
+  const input = userInput();
+  if (input) { input.disabled = false; input.focus(); }
   addMessage('bot', '↩ Action annulée.');
 };
 
