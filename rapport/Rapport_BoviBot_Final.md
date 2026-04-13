@@ -24,7 +24,7 @@ date: "Avril 2026"
 
 | Nom complet | Rôle | Parcours |
 |:---|:---|:---|
-| Mouhamadou Madeniyou Sall | Chef de groupe | Intelligence Artificielle & Big Data |
+| Mouhamadou Madeniyou Sall | Membre | Intelligence Artificielle & Big Data |
 | Anna Ndoye | Membre | Sécurité des Systèmes d'Information |
 | Abdoul Aziz Kane | Membre | Télécommunications & Réseaux |
 | Fatoumata Barro | Membre | Télécommunications & Réseaux |
