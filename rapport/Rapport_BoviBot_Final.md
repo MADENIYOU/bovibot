@@ -35,7 +35,9 @@ date: "Avril 2026"
 
 1. [Page de garde](#1-page-de-garde)
 2. [Table des matières](#2-table-des-matières)
-3. [Introduction et contexte métier](#3-introduction-et-contexte-métier)
+3. [Table des illustrations](#3-table-des-illustrations)
+4. [Résumé Général](#4-résumé-général)
+5. [Introduction et contexte métier](#5-introduction-et-contexte-métier)
    - 3.1 Contexte général
    - 3.2 Présentation du projet BoviBot
    - 3.3 Problématique
@@ -72,7 +74,31 @@ date: "Avril 2026"
 
 ---
 
-## 3. Introduction et contexte métier
+## 3. Table des illustrations
+
+*(Générée automatiquement dans la version PDF)*
+
+---
+
+## 4. Résumé Général
+
+BoviBot est une application web de gestion d'élevage bovin développée dans le cadre du cours d'intégration de l'IA et des bases de données avancées (Licence 3, ESP/UCAD). Le projet répond à une problématique concrète du contexte sénégalais : permettre à un éleveur, sans formation informatique avancée, de gérer son troupeau en langage naturel grâce à un assistant LLM connecté à un moteur PL/SQL avancé.
+
+Le système repose sur trois piliers complémentaires :
+
+1. **Une base de données MySQL normalisée (11 tables, 3NF)** intégrant un moteur PL/SQL complet : 3 procédures stockées transactionnelles, 4 fonctions métier, 4 triggers de vigilance automatique et 3 events planifiés (quotidien, hebdomadaire, mensuel).
+
+2. **Un backend Python FastAPI (29 endpoints REST)** orchestrant un LLM (DeepSeek/gpt-4o-mini) via une stratégie de prompting Few-Shot à 4 piliers, avec double protection contre les injections (prompt injection + SQL injection).
+
+3. **Un frontend HTML/CSS/JS en 9 pages** (tableau de bord, chat LLM, troupeau, santé, généalogie, gestation, rapports, stocks, paramètres), déployé sur VPS Ubuntu 22.04 via Docker Compose (Nginx + FastAPI + MySQL).
+
+Les 5 cas fonctionnels du Cahier des Charges ont été validés en production, ainsi que 6 cas limites de sécurité et de robustesse. L'application dépasse les exigences minimales sur l'ensemble des critères évalués : 14 objets PL/SQL implémentés (contre 9 exigés), 9 pages frontend (contre 1 exigée), export PDF intégré et double protection sécurité (bonus).
+
+**Mots-clés :** MySQL · PL/SQL · FastAPI · LLM · Text-to-SQL · Docker · Élevage bovin · Sénégal
+
+---
+
+## 5. Introduction et contexte métier
 
 ### 3.1 Contexte général
 
