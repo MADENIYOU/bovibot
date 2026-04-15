@@ -178,6 +178,116 @@ window.closeAIModal = function(event) {
   }
 }
 
+// ── Flux de confirmation des actions PL/SQL ───────────────────
+
+function afficherConfirmation(data) {
+  pendingAction = data.pending_action;
+
+  const params = data.pending_action.params || {};
+  const paramsHtml = Object.entries(params)
+    .map(([k, v]) => `<span class="text-slate-400">${escapeHtml(k)}</span> : <strong class="text-slate-700">${escapeHtml(String(v))}</strong>`)
+    .join('<br>');
+
+  const box = messagesInner();
+  const div = document.createElement('div');
+  div.id = 'confirmation-bubble';
+  div.className = 'flex gap-4 max-w-[85%]';
+  div.innerHTML = `
+    <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:20px;">smart_toy</span>
+    </div>
+    <div class="p-5 bg-amber-50 border-2 border-amber-400 text-slate-700 rounded-2xl rounded-tl-none shadow-sm leading-relaxed">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-symbols-outlined text-amber-500" style="font-size:20px; font-variation-settings:'FILL' 1;">warning</span>
+        <strong class="text-amber-700 text-sm uppercase tracking-wide">Confirmation requise</strong>
+      </div>
+      <p class="text-slate-700 mb-3">${escapeHtml(data.confirmation || data.answer)}</p>
+      <div class="text-xs bg-white border border-amber-200 rounded-lg p-3 mb-4 font-mono leading-relaxed">
+        <span class="text-slate-400">procédure</span> : <strong class="text-amber-700">${escapeHtml(data.pending_action.action)}</strong><br>
+        ${paramsHtml}
+      </div>
+      <div class="flex gap-3">
+        <button onclick="confirmerAction()"
+          class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg cursor-pointer border-0 transition-colors">
+          ✓ Confirmer
+        </button>
+        <button onclick="annulerAction()"
+          class="px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 text-sm font-bold rounded-lg cursor-pointer border border-slate-300 transition-colors">
+          ✗ Annuler
+        </button>
+      </div>
+    </div>
+  `;
+  box.appendChild(div);
+  scrollChat();
+}
+
+window.confirmerAction = async function() {
+  if (!pendingAction) return;
+
+  const bubble = document.getElementById('confirmation-bubble');
+  if (bubble) bubble.remove();
+
+  isBusy = true;
+  const input = userInput();
+  if (input) input.disabled = true;
+
+  addSpinner();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: '',
+        history: [],
+        confirm_action: true,
+        pending_action: pendingAction
+      })
+    });
+
+    const data = await res.json();
+    removeSpinner();
+
+    if (!res.ok) {
+      addMessage('bot', `❌ <strong>Erreur : ${escapeHtml(data.detail || 'Action échouée')}</strong>`);
+    } else {
+      const box = messagesInner();
+      const div = document.createElement('div');
+      div.className = 'flex gap-4 max-w-[85%]';
+      div.innerHTML = `
+        <div class="w-10 h-10 rounded-xl bg-green-600 text-white flex items-center justify-center shrink-0 shadow-md">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1; font-size:20px;">check_circle</span>
+        </div>
+        <div class="p-5 bg-green-50 border-2 border-green-500 text-slate-700 rounded-2xl rounded-tl-none shadow-sm leading-relaxed">
+          <span class="text-green-700 font-bold">✓ Action effectuée</span>
+          <p class="mt-1 text-slate-600">${escapeHtml(data.answer || 'Action effectuée avec succès !')}</p>
+        </div>
+      `;
+      box.appendChild(div);
+      scrollChat();
+      chatHistory.push({ role: 'assistant', content: data.answer || 'Action effectuée avec succès !' });
+    }
+  } catch (e) {
+    removeSpinner();
+    addMessage('bot', '❌ Erreur de connexion lors de la confirmation.');
+  }
+
+  pendingAction = null;
+  isBusy = false;
+  if (input) { input.disabled = false; input.focus(); }
+};
+
+window.annulerAction = function() {
+  const bubble = document.getElementById('confirmation-bubble');
+  if (bubble) bubble.remove();
+  pendingAction = null;
+  isBusy = false;
+  const input = userInput();
+  if (input) { input.disabled = false; input.focus(); }
+  addMessage('bot', '↩ Action annulée.');
+};
+
 // ── Envoi Message ─────────────────────────────────────────────
 async function sendMessage() {
   if (isBusy) return;
@@ -186,6 +296,7 @@ async function sendMessage() {
   if (!question) return;
 
   isBusy = true;
+  let keepLocked = false;
   input.value = '';
   input.disabled = true;
 
@@ -221,6 +332,9 @@ async function sendMessage() {
         }
         addMessage('bot', chatHtml);
         updatePlayground(data.data, data.sql, data.answer);
+      } else if (type === 'action_pending') {
+        afficherConfirmation(data);
+        keepLocked = true;
       } else {
         addMessage('bot', escapeHtml(data.answer || 'Je n\'ai pas compris.'));
       }
@@ -231,9 +345,11 @@ async function sendMessage() {
     addMessage('bot', 'Erreur de connexion au serveur.');
   }
 
-  isBusy = false;
-  input.disabled = false;
-  input.focus();
+  if (!keepLocked) {
+    isBusy = false;
+    input.disabled = false;
+    input.focus();
+  }
 }
 
 function ask(q) {
