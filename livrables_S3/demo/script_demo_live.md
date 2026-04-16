@@ -3,15 +3,15 @@
 ## Durée cible : 8 à 10 minutes
 **Régisseur technique** : Barro  
 **Date** : Jour de soutenance  
-**URL** : http://http://212.90.121.51:8080/ ou http://localhost/ (plan de secours)
+**URL** : http://212.90.121.51:8080/ ou http://localhost/ (plan de secours)
 
 ---
 
 ## Pré-requis vérifiés avant d'entrer en salle
 
-- [ ] VPS accessible : `curl http://http://212.90.121.51:8080/api/health` → `{"status":"ok"}`
+- [ ] VPS accessible : `curl http://212.90.121.51:8080/api/health` → `{"status":"ok"}`
 - [ ] Données fraîches chargées (seed_data.sql réinjecté si nécessaire)
-- [ ] Navigateur ouvert en plein écran sur `http://http://212.90.121.51:8080/`
+- [ ] Navigateur ouvert en plein écran sur http://212.90.121.51:8080/`
 - [ ] Connexion internet de secours prête (partage de connexion mobile)
 - [ ] Docker Desktop lancé sur le PC (pour plan de secours local)
 
