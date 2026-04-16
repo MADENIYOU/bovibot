@@ -1,0 +1,1929 @@
+% ============================================================
+%  BoviBot — Rapport de Conception et Réalisation
+%  ESP/UCAD — Licence 3 DIC2 — Avril 2026
+%  Compiler avec pdflatex (deux passes pour tikz)
+%  Sur Overleaf : importer MCD_BoviBot.png et MLD_BoviBot.png
+% ============================================================
+
+\documentclass[12pt, a4paper, oneside]{report}
+
+% ── Encodage et langue ───────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+% ── Police : Palatino (élégante, professionnelle) ────────────
+\usepackage{mathpazo}
+\usepackage{microtype}
+
+% ── Tolérance de débordement horizontal ──────────────────────
+\emergencystretch=3em
+\tolerance=1500
+\hbadness=1500
+
+% ── Mise en page ─────────────────────────────────────────────
+\usepackage[
+  a4paper,
+  top=2.5cm,
+  bottom=2.5cm,
+  left=3cm,
+  right=2.5cm,
+  headheight=15pt
+]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Couleurs BoviBot ─────────────────────────────────────────
+\usepackage[dvipsnames, svgnames, table]{xcolor}
+\definecolor{bovibrown}{HTML}{7C4F1E}
+\definecolor{bovibrowndark}{HTML}{5A3A15}
+\definecolor{bovilight}{HTML}{FDF6EC}
+\definecolor{bovibg}{HTML}{F5F0E8}
+\definecolor{bovired}{HTML}{DC2626}
+\definecolor{boviorange}{HTML}{F59E0B}
+\definecolor{boviblue}{HTML}{3B82F6}
+\definecolor{bovigreen}{HTML}{16A34A}
+\definecolor{bovitext}{HTML}{1D1C17}
+\definecolor{bovitextsoft}{HTML}{51453A}
+\definecolor{codebg}{HTML}{1E293B}
+\definecolor{codetext}{HTML}{E2E8F0}
+\definecolor{codekw}{HTML}{93C5FD}
+\definecolor{codestr}{HTML}{FCD34D}
+\definecolor{codecomment}{HTML}{64748B}
+
+% ── Titres et sections ────────────────────────────────────────
+\usepackage{titlesec}
+
+% Style des chapitres
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{bovibrown}}
+  {{\normalsize\color{bovitextsoft}\MakeUppercase{\chaptertitlename}}~\thechapter}
+  {10pt}
+  {\Huge}
+  [\vspace{4pt}{\color{bovibrown}\rule{\textwidth}{1.5pt}}]
+\titlespacing*{\chapter}{0pt}{-10pt}{30pt}
+
+% Style des sections
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{bovibrowndark}}
+  {\thesection}
+  {1em}{}
+\titlespacing*{\section}{0pt}{20pt}{8pt}
+
+% Style des sous-sections
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{bovibrowndark}}
+  {\thesubsection}
+  {1em}{}
+\titlespacing*{\subsection}{0pt}{14pt}{4pt}
+
+% Style des sous-sous-sections
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{bovitextsoft}}
+  {\thesubsubsection}
+  {1em}{}
+
+% ── En-têtes et pieds de page ─────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{bovitextsoft}\slshape\leftmark}
+\fancyhead[R]{\small\color{bovibrown}\textbf{BoviBot} \color{bovitextsoft}— ESP/UCAD}
+\fancyfoot[C]{\small\color{bovitextsoft}\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\headrule}{{\color{bovibrown}\hrule width\headwidth height\headrulewidth}}
+\renewcommand{\footrulewidth}{0pt}
+
+% Style plain pour les premières pages de chapitre
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\small\color{bovitextsoft}\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+% ── Tableaux ─────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{colortbl}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ── Images ───────────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{
+  font=small,
+  labelfont={bf, color=bovibrown},
+  textfont={color=bovitextsoft},
+  labelsep=period,
+  skip=6pt
+}
+\captionsetup[table]{position=top}
+
+% ── Boîtes colorées ──────────────────────────────────────────
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable, skins, listings}
+
+% Boîte info (note bleue)
+\newtcolorbox{infobox}[1][]{
+  enhanced, breakable,
+  colback=boviblue!8,
+  colframe=boviblue!60,
+  arc=4pt, boxrule=0.6pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fontupper=\small\color{bovitext},
+  #1
+}
+
+% Boîte avertissement (orange)
+\newtcolorbox{warnbox}[1][]{
+  enhanced, breakable,
+  colback=boviorange!10,
+  colframe=boviorange!70,
+  arc=4pt, boxrule=0.6pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fontupper=\small\color{bovitext},
+  #1
+}
+
+% Boîte critique (rouge)
+\newtcolorbox{critbox}[1][]{
+  enhanced, breakable,
+  colback=bovired!8,
+  colframe=bovired!60,
+  arc=4pt, boxrule=0.6pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fontupper=\small\color{bovitext},
+  #1
+}
+
+% Boîte succès (verte)
+\newtcolorbox{successbox}[1][]{
+  enhanced, breakable,
+  colback=bovigreen!8,
+  colframe=bovigreen!60,
+  arc=4pt, boxrule=0.6pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fontupper=\small\color{bovitext},
+  #1
+}
+
+% ── Code (listings) ──────────────────────────────────────────
+\usepackage{listings}
+
+\lstdefinelanguage{MySQL}{
+  morekeywords={CREATE,PROCEDURE,FUNCTION,TRIGGER,EVENT,BEGIN,END,%
+    DECLARE,START,TRANSACTION,COMMIT,ROLLBACK,INSERT,UPDATE,DELETE,%
+    SELECT,FROM,WHERE,INTO,VALUES,SET,IF,THEN,ELSE,ELSEIF,CALL,RETURN,%
+    RETURNS,READS,SQL,DATA,DELIMITER,FOR,EACH,ROW,AFTER,BEFORE,ON,%
+    SCHEDULE,EVERY,STARTS,DO,CURRENT_TIMESTAMP,DATE_ADD,DATEDIFF,%
+    TIMESTAMPDIFF,CURDATE,SIGNAL,SQLSTATE,RESIGNAL,NOT,EXISTS,NULL,%
+    AND,OR,IN,LIMIT,ORDER,BY,DESC,ASC,JOIN,LEFT,RIGHT,INNER,GROUP,%
+    HAVING,COUNT,SUM,COALESCE,ROUND,CONCAT,INTERVAL,DAY,MONTH,WEEK,%
+    INT,DECIMAL,VARCHAR,TEXT,BOOLEAN,TIMESTAMP,ENUM,AUTO_INCREMENT,%
+    PRIMARY,KEY,FOREIGN,REFERENCES,UNIQUE,DEFAULT,GLOBAL,EXIT,HANDLER,%
+    SQLEXCEPTION,MESSAGE_TEXT,IS,LIKE,DATE,DATE_SUB,DUMPFILE},
+  sensitive=false,
+  morestring=[b]',
+  morestring=[b]",
+  morecomment=[l]{--},
+  morecomment=[s]{/*}{*/}
+}
+
+\lstdefinestyle{bovistyle}{
+  language=MySQL,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codetext},
+  keywordstyle=\color{codekw}\bfseries,
+  stringstyle=\color{codestr},
+  commentstyle=\color{codecomment}\itshape,
+  numbers=left,
+  numberstyle=\tiny\color{codecomment},
+  numbersep=10pt,
+  breaklines=true,
+  breakatwhitespace=true,
+  showstringspaces=false,
+  tabsize=4,
+  keepspaces=true,
+  xleftmargin=18pt,
+  framexleftmargin=18pt,
+  literate=
+    {é}{{\'{e}}}1 {è}{{\`{e}}}1 {ê}{{\^{e}}}1 {ë}{{\"e}}1
+    {É}{{\'{E}}}1 {È}{{\`{E}}}1 {Ê}{{\^{E}}}1
+    {à}{{\`{a}}}1 {â}{{\^{a}}}1
+    {À}{{\`{A}}}1
+    {î}{{\^{i}}}1 {ï}{{\"i}}1
+    {ô}{{\^{o}}}1
+    {ù}{{\`{u}}}1 {û}{{\^{u}}}1
+    {ç}{{\c{c}}}1 {Ç}{{\c{C}}}1
+    {œ}{{\oe}}1
+}
+
+\lstdefinestyle{bashstyle}{
+  language=bash,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codetext},
+  keywordstyle=\color{bovigreen}\bfseries,
+  commentstyle=\color{codecomment}\itshape,
+  stringstyle=\color{codestr},
+  breaklines=true,
+  showstringspaces=false,
+  xleftmargin=10pt,
+  literate=
+    {é}{{\'{e}}}1 {è}{{\`{e}}}1 {à}{{\`{a}}}1 {ç}{{\c{c}}}1
+}
+
+% Boîte code SQL avec titre
+\newtcblisting{sqlbox}[1]{
+  listing only,
+  listing options={style=bovistyle},
+  breakable, enhanced,
+  colback=codebg,
+  colframe=bovibrown!70,
+  arc=4pt, boxrule=0.8pt,
+  title={\small\bfseries\color{white}\ttfamily #1},
+  attach boxed title to top left={yshift=-2mm, xshift=5mm},
+  boxed title style={colback=bovibrown, arc=2pt, boxrule=0pt},
+  top=10pt, bottom=4pt,
+  left=2pt, right=2pt
+}
+
+% Boîte code Bash
+\newtcblisting{bashbox}[1]{
+  listing only,
+  listing options={style=bashstyle},
+  breakable, enhanced,
+  colback=codebg,
+  colframe=bovigreen!50,
+  arc=4pt, boxrule=0.8pt,
+  title={\small\bfseries\color{white}\ttfamily #1},
+  attach boxed title to top left={yshift=-2mm, xshift=5mm},
+  boxed title style={colback=bovibrowndark, arc=2pt, boxrule=0pt},
+  top=10pt, bottom=4pt,
+  left=2pt, right=2pt
+}
+
+% ── Liens hypertexte ─────────────────────────────────────────
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=bovibrown,
+  urlcolor=boviblue,
+  citecolor=bovibrown,
+  pdftitle={BoviBot --- Gestion d'Elevage Bovin avec IA et PL/SQL},
+  pdfauthor={Sall, Ndoye, Kane, Barro --- ESP/UCAD DIC2},
+  pdfsubject={Rapport de Conception et Realisation},
+  pdfkeywords={MySQL, PL/SQL, FastAPI, LLM, Text-to-SQL, elevage bovin, Docker},
+  bookmarksnumbered=true,
+  bookmarksopen=true,
+  pdfstartview=FitH
+}
+
+% ── Annexes ──────────────────────────────────────────────────
+\usepackage[toc, page]{appendix}
+\renewcommand{\appendixtocname}{Annexes}
+\renewcommand{\appendixpagename}{Annexes}
+
+% ── TikZ (page de garde) ─────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+% ── Autres utilitaires ───────────────────────────────────────
+\usepackage{enumitem}
+\usepackage{pifont}
+\usepackage{mdframed}
+\usepackage{amsmath}
+\usepackage{emptypage}
+
+% ── Commandes personnalisées ─────────────────────────────────
+
+% Lien vers une annexe (inline, avec flèche)
+\newcommand{\annexeref}[1]{%
+  \tcbox[colback=bovilight, colframe=bovibrown, arc=2pt,
+         boxsep=1pt, left=3pt, right=3pt, top=1pt, bottom=1pt,
+         on line, boxrule=0.5pt]{%
+    \small\color{bovibrown}$\hookrightarrow$~\hyperref[#1]{Annexe~\ref{#1}, p.~\pageref{#1}}%
+  }%
+}
+
+% Check mark vert
+\newcommand{\okmark}{\textcolor{bovigreen}{\ding{51}}}
+
+% Séparateur de section
+\newcommand{\secsep}{\vspace{4pt}{\color{bovibrown!30}\hrule}\vspace{8pt}}
+
+% Tableau alternant couleurs
+\newcommand{\bovirowcolors}{\rowcolors{2}{bovilight}{white}}
+
+% Noms propres
+\newcommand{\bovibot}{\textsc{BoviBot}}
+
+% ── Noms français ────────────────────────────────────────────
+\renewcommand{\chaptername}{Chapitre}
+\addto\captionsfrench{\renewcommand{\appendixname}{Annexe}}
+\addto\captionsfrench{\renewcommand{\listfigurename}{Liste des figures}}
+\addto\captionsfrench{\renewcommand{\listtablename}{Liste des tableaux}}
+\addto\captionsfrench{\renewcommand{\figurename}{Figure}}
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
+
+% ─────────────────────────────────────────────────────────────
+\begin{document}
+
+% ════════════════════════════════════════════════════════════
+%  PAGE DE GARDE
+% ════════════════════════════════════════════════════════════
+\begin{titlepage}
+  \thispagestyle{empty}
+  % Neutralise \onehalfspacing sur cette page uniquement
+  \setstretch{1}
+
+  % --- Arrière-plan tikz ---
+  \begin{tikzpicture}[remember picture, overlay]
+    % Bandeau supérieur brun foncé — 10.5 cm pour couvrir titre + en-tête
+    \fill[bovibrowndark]
+      (current page.north west)
+      rectangle
+      ([yshift=-10.5cm] current page.north east);
+
+    % Liseré orange sous le bandeau
+    \fill[boviorange]
+      ([yshift=-10.5cm] current page.north west)
+      rectangle
+      ([yshift=-10.9cm] current page.north east);
+
+    % Bande inférieure beige chaud
+    \fill[bovibg]
+      ([yshift=3.2cm] current page.south west)
+      rectangle
+      (current page.south east);
+
+    % Double liseré brun/orange
+    \fill[bovibrown]
+      ([yshift=3.2cm] current page.south west)
+      rectangle
+      ([yshift=2.95cm] current page.south east);
+    \fill[boviorange]
+      ([yshift=2.95cm] current page.south west)
+      rectangle
+      ([yshift=2.82cm] current page.south east);
+
+    % Cercles décoratifs coin supérieur droit
+    \fill[bovibrown, opacity=0.18]
+      ([xshift=-1.2cm, yshift=-1.2cm] current page.north east)
+      circle (3.2cm);
+    \fill[bovibrown, opacity=0.10]
+      ([xshift=-2.5cm, yshift=-2.5cm] current page.north east)
+      circle (5.5cm);
+
+    % Cercle décoratif coin inférieur gauche
+    \fill[bovibrown, opacity=0.09]
+      ([xshift=0.8cm, yshift=0.8cm] current page.south west)
+      circle (2.8cm);
+  \end{tikzpicture}
+
+  % ── Établissement (sur fond brun foncé) ─────────────────
+  \vspace*{0.8cm}
+  \begin{center}
+    {\color{white}\large\bfseries École Supérieure Polytechnique (ESP)}\\[0.2em]
+    {\color{white!80}\normalsize Université Cheikh Anta Diop — Dakar, Sénégal}\\[0.3em]
+    {\color{boviorange!80}\rule{0.35\textwidth}{0.6pt}}\\[0.3em]
+    {\color{white!65}\small Licence 3 DIC2 \quad\textbullet\quad IABD $\cdot$ SSI $\cdot$ TR}\\[0.1em]
+    {\color{white!55}\small\itshape Bases de Données Avancées — Intégration IA \& PL/SQL}
+  \end{center}
+
+  \vspace{0.9cm}
+
+  % ── Titre principal ──────────────────────────────────────
+  \begin{center}
+    {\color{white}\fontsize{54}{60}\selectfont\bfseries
+      Bovi\textcolor{boviorange}{Bot}}\\[0.3em]
+    {\color{white!80}\large\itshape Gestion d'Élevage Bovin}\\[0.1em]
+    {\color{white!80}\large\itshape Intelligence Artificielle \& PL/SQL}\\[0.5em]
+    {\color{boviorange}\rule{0.48\textwidth}{1.4pt}}\\[0.25em]
+    {\color{white!55}\normalsize\scshape Rapport de Conception et Réalisation}
+  \end{center}
+
+  % ── Zone centrale sur fond blanc ─────────────────────────
+  \vspace{1.8cm}
+
+  % Membres du groupe
+  \begin{center}
+    {\large\bfseries\color{bovibrown} Membres du groupe}\\[0.5em]
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{@{\hspace{0.3cm}}L{6.8cm}L{5.8cm}@{}}
+      \toprule
+      \rowcolor{bovibrown!12}
+      \textbf{\color{bovibrowndark}Nom complet} &
+      \textbf{\color{bovibrowndark}Parcours} \\
+      \midrule
+      Mouhamadou Madeniyou Sall &
+      Intelligence Artificielle \& Big Data \\
+      \rowcolor{bovilight}
+      Anna Ndoye &
+      Sécurité des Systèmes d'Information \\
+      Abdoul Aziz Kane &
+      Télécommunications \& Réseaux \\
+      \rowcolor{bovilight}
+      Fatoumata Barro &
+      Télécommunications \& Réseaux \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+
+  \vspace{1.1cm}
+
+  % Encadrant — boîte centrée
+  \begin{center}
+    \begin{tcolorbox}[
+      enhanced,
+      colback=bovilight,
+      colframe=bovibrown,
+      arc=5pt, boxrule=0.7pt,
+      width=0.58\textwidth,
+      halign=center,
+      top=5pt, bottom=5pt, left=10pt, right=10pt
+    ]
+      {\small\color{bovitextsoft}\scshape Sous la direction de}\\[0.3em]
+      {\color{bovibrown}\large\bfseries Pr. Ahmath Bamba MBACKE}\\[0.15em]
+      {\small\color{bovitextsoft}\itshape ahmathbamba.mbacke@esp.sn}
+    \end{tcolorbox}
+  \end{center}
+
+  % ── Bas de page (bande beige) ────────────────────────────
+  \vfill
+
+  \begin{center}
+    {\color{bovibrowndark}\normalsize
+      Année académique \textbf{2025 – 2026}
+      \quad\textcolor{bovibrown}{$\boldsymbol{\mid}$}\quad
+      Avril \textbf{2026}}
+  \end{center}
+
+  \vspace{0.8cm}
+\end{titlepage}
+
+% ════════════════════════════════════════════════════════════
+%  PAGES PRÉLIMINAIRES — numérotation romaine
+% ════════════════════════════════════════════════════════════
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+% --- Table des matières ---
+\tableofcontents
+\newpage
+
+% --- Résumé Général ---
+\phantomsection
+\addcontentsline{toc}{chapter}{Résumé Général}
+\chapter*{Résumé Général}
+
+\begin{tcolorbox}[
+  enhanced, breakable,
+  colback=bovilight,
+  colframe=bovibrown,
+  arc=5pt, boxrule=0.8pt,
+  left=14pt, right=14pt, top=10pt, bottom=10pt
+]
+\bovibot{} est une application web de gestion d'élevage bovin développée dans le cadre
+du cours d'intégration de l'IA et des bases de données avancées (Licence~3, ESP/UCAD).
+Le projet répond à une problématique concrète du contexte sénégalais : permettre à un
+éleveur, sans formation informatique avancée, de gérer son troupeau \textbf{en langage
+naturel} grâce à un assistant LLM connecté à un moteur PL/SQL avancé.
+\end{tcolorbox}
+
+\vspace{1em}
+
+\noindent Le système repose sur \textbf{trois piliers complémentaires} :
+
+\vspace{0.4em}
+
+\begin{enumerate}[leftmargin=1.5cm, itemsep=6pt]
+  \item \textbf{Base de données MySQL normalisée} (11 tables, 3NF) — moteur PL/SQL
+    complet : 3~procédures stockées transactionnelles, 4~fonctions métier,
+    4~triggers de vigilance automatique et 3~events planifiés.
+
+  \item \textbf{Backend Python FastAPI} (29 endpoints REST) — orchestration d'un LLM
+    (DeepSeek / gpt-4o-mini) via une stratégie de prompting Few-Shot à 4~piliers,
+    avec double protection contre les injections de prompt et SQL.
+
+  \item \textbf{Frontend HTML/CSS/JS} (9 pages : tableau de bord, chat, troupeau,
+    santé, généalogie, gestation, rapports, stocks, paramètres) — déployé sur VPS
+    Ubuntu~22.04 via Docker Compose.
+\end{enumerate}
+
+\vspace{0.8em}
+
+\noindent Les 5~cas fonctionnels du Cahier des Charges ont été validés en production,
+ainsi que 6~cas limites de sécurité et de robustesse. L'application \textbf{dépasse les
+exigences minimales} sur tous les critères évalués : 14~objets PL/SQL (contre 9~requis),
+export PDF intégré et double protection sécurité (bonus).
+
+\vspace{1.4em}
+
+\begin{center}
+  \colorbox{bovibrown!10}{%
+    \begin{minipage}{0.9\textwidth}
+      \vspace{0.4em}
+      \centering
+      {\small\bfseries\color{bovibrown}Mots-clés\quad}
+      {\small\color{bovitextsoft}%
+        MySQL $\cdot$ PL/SQL $\cdot$ FastAPI $\cdot$ LLM $\cdot$ Text-to-SQL $\cdot$
+        Docker $\cdot$ Élevage bovin $\cdot$ Sénégal}
+      \vspace{0.4em}
+    \end{minipage}%
+  }
+\end{center}
+
+\newpage
+
+% ════════════════════════════════════════════════════════════
+%  CORPS DU RAPPORT — numérotation arabe
+% ════════════════════════════════════════════════════════════
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Introduction et contexte métier}
+% ────────────────────────────────────────────────────────────
+
+\section{Contexte général}
+
+L'élevage bovin occupe une place centrale dans l'économie rurale sénégalaise. Selon les
+données du Ministère de l'Élevage, le cheptel bovin national dépasse les \textbf{3,5~millions
+de têtes}, constituant une source essentielle de revenus pour les ménages ruraux, de sécurité
+alimentaire et de capital social. Pourtant, la majorité des exploitations sont gérées de
+manière informelle, sans outil de suivi structuré, ce qui limite la productivité et
+l'accès au crédit agricole.
+
+\vspace{0.5em}
+
+\noindent Dans ce contexte, le numérique représente un levier de modernisation à fort impact.
+La combinaison de bases de données relationnelles avancées et d'assistants intelligents permet
+d'automatiser le suivi sanitaire, la traçabilité des pesées, la gestion de la reproduction
+et les alertes critiques — autant de tâches qui reposent aujourd'hui sur la mémoire et les
+registres papier de l'éleveur.
+
+\section{Présentation du projet \bovibot{}}
+
+\bovibot{} est une application web de gestion d'élevage bovin développée dans le cadre du
+cours d'intégration de l'IA et des bases de données avancées (Licence~3, ESP/UCAD). Elle
+intègre deux composantes techniques complémentaires :
+
+\begin{itemize}[itemsep=4pt]
+  \item Un \textbf{assistant LLM} capable d'interroger la base de données en langage
+    naturel (mode Text-to-SQL) et d'exécuter des actions métier via des procédures
+    stockées, avec confirmation explicite obligatoire.
+  \item Un \textbf{moteur PL/SQL avancé} comprenant procédures stockées, fonctions,
+    triggers et events MySQL Scheduler automatisant les alertes et les calculs de
+    croissance du troupeau.
+\end{itemize}
+
+L'application s'adresse à un éleveur gérant un troupeau mixte : elle permet de consulter
+l'état du troupeau en langage naturel, d'enregistrer des pesées et des ventes via une
+interface de chat, et de recevoir des alertes automatiques sur la santé, la vaccination et
+les vêlages à venir.
+
+\section{Problématique}
+
+\begin{infobox}
+  Comment concevoir un système de gestion d'élevage bovin qui soit à la fois rigoureux
+  sur le plan de la logique métier (intégrité des données, contraintes, automatisations)
+  et accessible à un utilisateur non technicien via une interface conversationnelle
+  en langage naturel ?
+\end{infobox}
+
+\section{Objectifs du projet}
+
+\begin{enumerate}[itemsep=4pt]
+  \item Modéliser une base de données MySQL normalisée (3NF) couvrant toutes les
+    dimensions de la gestion d'un troupeau bovin.
+  \item Implémenter les éléments PL/SQL obligatoires : 2 procédures stockées,
+    2 fonctions, 3 triggers, 2 events — objectif surpassé avec 14 objets PL/SQL.
+  \item Intégrer un assistant LLM capable de générer du SQL à partir de questions en
+    langue naturelle et d'appeler les procédures stockées avec double protection
+    contre les injections.
+  \item Déployer l'application sur une infrastructure accessible en ligne avec tableau
+    de bord, gestion des alertes et interface de chat.
+\end{enumerate}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Modélisation de la base de données}
+% ────────────────────────────────────────────────────────────
+
+La base de données \bovibot{} est construite autour de \textbf{11 tables} couvrant
+l'intégralité des dimensions de la gestion d'un troupeau bovin. Elle respecte la
+troisième forme normale (3NF) pour garantir l'absence de redondance et la cohérence
+des données.
+
+\section{Dictionnaire de données}
+
+\subsection*{Conventions}
+
+\begin{center}
+  \begin{tabular}{@{}cl@{}}
+    \toprule
+    \textbf{Symbole} & \textbf{Signification} \\
+    \midrule
+    PK  & Clé primaire (\texttt{PRIMARY KEY}) \\
+    FK  & Clé étrangère (\texttt{FOREIGN KEY}) \\
+    NN  & Non nul (\texttt{NOT NULL}) \\
+    UQ  & Unique (\texttt{UNIQUE}) \\
+    DEF & Valeur par défaut (\texttt{DEFAULT}) \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+
+% --- Table races ---
+\begin{table}[H]
+\caption{Table \texttt{races} — Référentiel des races bovines}
+\label{tab:races}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}cL{3.8cm}L{3cm}cX@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{\#} & \textbf{Champ} & \textbf{Type SQL} & \textbf{C.} & \textbf{Rôle métier} \\
+  \midrule
+  1 & \texttt{id}                      & \texttt{INT AUTO\_INC}   & PK    & Identifiant technique unique \\
+  2 & \texttt{nom}                     & \texttt{VARCHAR(100)}    & NN    & Nom vernaculaire (ex : Zébu Gobra) \\
+  3 & \texttt{origine}                 & \texttt{VARCHAR(100)}    & —     & Pays ou région d'origine \\
+  4 & \texttt{poids\_adulte\_moyen\_kg}& \texttt{DECIMAL(6,2)}    & —     & Poids adulte moyen — référence croissance \\
+  5 & \texttt{production\_lait\_l\_j}  & \texttt{DECIMAL(6,2)}    & DEF~0 & Production laitière journalière (0 = allaitant) \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+% --- Table animaux ---
+\begin{table}[H]
+\caption{Table \texttt{animaux} — Table centrale du troupeau}
+\label{tab:animaux}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}cL{3.4cm}L{4.2cm}cX@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{\#} & \textbf{Champ} & \textbf{Type SQL} & \textbf{C.} & \textbf{Rôle métier} \\
+  \midrule
+  1  & \texttt{id}              & \texttt{INT AUTO\_INC}                              & PK      & Identifiant interne unique \\
+  2  & \texttt{numero\_tag}     & \texttt{VARCHAR(30)}                                & NN,~UQ  & Boucle auriculaire terrain (ex : TAG-001) \\
+  3  & \texttt{nom}             & \texttt{VARCHAR(100)}                               & —       & Nom usuel de l'éleveur \\
+  4  & \texttt{race\_id}        & \texttt{INT}                                        & FK      & Race → \texttt{races(id)} \\
+  5  & \texttt{sexe}            & \texttt{ENUM('M','F')}                              & NN      & Sexe biologique \\
+  6  & \texttt{date\_naissance} & \texttt{DATE}                                       & NN      & Base de calcul pour \texttt{fn\_age\_en\_mois} \\
+  7  & \texttt{poids\_actuel}   & \texttt{DECIMAL(6,2)}                               & —       & Mis à jour par \texttt{sp\_enregistrer\_pesee} \\
+  8  & \texttt{statut}          & \texttt{ENUM('actif','vendu',}\newline\texttt{'mort','quarantaine')} & DEF & État opérationnel \\
+  9  & \texttt{mere\_id}        & \texttt{INT}                                        & FK,NULL & Réflexive → mère (même table) \\
+  10 & \texttt{pere\_id}        & \texttt{INT}                                        & FK,NULL & Réflexive → père (même table) \\
+  11 & \texttt{notes}           & \texttt{TEXT}                                       & —       & Observations libres \\
+  12 & \texttt{created\_at}     & \texttt{TIMESTAMP}                                  & DEF     & Horodatage d'enregistrement \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+% --- Tables 3-11 condensées ---
+Les tables suivantes (3 à 11) sont documentées selon le même modèle.
+
+\begin{table}[H]
+\caption{Tables \texttt{pesees}, \texttt{sante}, \texttt{reproduction} — Suivi zootechnique et sanitaire}
+\label{tab:pesees_sante_repro}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{2.8cm}L{3cm}L{3cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Table} & \textbf{Clé primaire} & \textbf{Clé étrangère} & \textbf{Champs clés et rôle} \\
+  \midrule
+  \texttt{pesees}       & \texttt{id}      & \texttt{animal\_id}         & \texttt{poids\_kg}, \texttt{date\_pesee}, \texttt{agent} — Historique des pesées \\
+  \texttt{sante}        & \texttt{id}      & \texttt{animal\_id}         & \texttt{type}, \texttt{date\_acte}, \texttt{prochain\_rdv} — Journal vétérinaire \\
+  \texttt{reproduction} & \texttt{id}      & \texttt{mere\_id, pere\_id} & \texttt{date\_velage\_prevue}, \texttt{statut} — Gestations \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\caption{Tables \texttt{alimentation}, \texttt{ventes}, \texttt{alertes} — Coûts, commercial, notifications}
+\label{tab:alim_ventes_alertes}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{2.8cm}L{3cm}L{3cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Table} & \textbf{Clé primaire} & \textbf{Clé étrangère} & \textbf{Champs clés et rôle} \\
+  \midrule
+  \texttt{alimentation}    & \texttt{id} & \texttt{animal\_id}      & \texttt{type\_aliment}, \texttt{quantite\_kg}, \texttt{cout\_unitaire\_kg} \\
+  \texttt{ventes}          & \texttt{id} & \texttt{animal\_id}      & \texttt{acheteur}, \texttt{prix\_fcfa}, \texttt{date\_vente} \\
+  \texttt{alertes}         & \texttt{id} & \texttt{animal\_id} NULL & \texttt{type}, \texttt{niveau}, \texttt{message}, \texttt{traitee} \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\caption{Tables étendues — Audit, lait, stocks}
+\label{tab:extended}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{4cm}L{2.8cm}L{2.8cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Table} & \textbf{Clé primaire} & \textbf{Clé étrangère} & \textbf{Rôle} \\
+  \midrule
+  \texttt{historique\_statut} & \texttt{id} & \texttt{animal\_id} & Journal d'audit ACID des changements de statut \\
+  \texttt{production\_lait}   & \texttt{id} & \texttt{animal\_id} & Traites journalières (matin/soir) \\
+  \texttt{stocks}             & \texttt{id} & —                   & Inventaire intrants avec seuil d'alerte \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Récapitulatif des relations inter-tables}
+
+\begin{table}[H]
+\caption{Relations inter-tables de la base de données \bovibot{}}
+\label{tab:relations}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{4cm}L{2.5cm}L{2.5cm}L{1.2cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Table source} & \textbf{Champ FK} & \textbf{Table cible} & \textbf{Card.} & \textbf{Nature} \\
+  \midrule
+  \texttt{animaux}           & \texttt{race\_id}   & \texttt{races}   & N,1 & Optionnelle \\
+  \texttt{animaux}           & \texttt{mere\_id}   & \texttt{animaux} & N,1 & Réflexive, optionnelle \\
+  \texttt{animaux}           & \texttt{pere\_id}   & \texttt{animaux} & N,1 & Réflexive, optionnelle \\
+  \texttt{pesees}            & \texttt{animal\_id} & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{sante}             & \texttt{animal\_id} & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{reproduction}      & \texttt{mere\_id}   & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{reproduction}      & \texttt{pere\_id}   & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{alimentation}      & \texttt{animal\_id} & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{ventes}            & \texttt{animal\_id} & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{alertes}           & \texttt{animal\_id} & \texttt{animaux} & N,1 & \textbf{Optionnelle} (NULL — alertes globales) \\
+  \texttt{historique\_statut}& \texttt{animal\_id} & \texttt{animaux} & N,1 & Obligatoire \\
+  \texttt{production\_lait}  & \texttt{animal\_id} & \texttt{animaux} & N,1 & Obligatoire \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Modèle Conceptuel de Données (MCD)}
+
+Le MCD représente les entités métier et leurs associations avant toute traduction en tables
+relationnelles. Il met en évidence les cardinalités et la relation réflexive de généalogie
+sur l'entité \textbf{ANIMAL}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{MCD_BoviBot.png}
+  \caption{Modèle Conceptuel de Données (MCD) — \bovibot{}}
+  \label{fig:mcd}
+\end{figure}
+
+\textbf{Entités principales :} RACE (référentiel stable), ANIMAL (entité centrale),
+PESEE / SANTE / ALIMENTATION / PRODUCTION\_LAIT (événements liés à un animal),
+REPRODUCTION (association ternaire mère-père avec attributs propres), VENTE
+(transaction définitive), ALERTE et HISTORIQUE\_STATUT (journalisation PL/SQL), STOCK
+(inventaire indépendant).
+
+\section{Modèle Logique de Données (MLD)}
+
+Le MLD traduit le MCD en schéma relationnel. Les clés étrangères matérialisent les
+associations et les contraintes d'intégrité référentielle sont définies explicitement.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{MLD_BoviBot.png}
+  \caption{Modèle Logique de Données (MLD) — \bovibot{}}
+  \label{fig:mld}
+\end{figure}
+
+\subsection*{Justifications des choix de modélisation non-triviaux}
+
+\paragraph{1. Clés étrangères auto-référencées (\texttt{mere\_id}, \texttt{pere\_id})}
+La table \texttt{animaux} contient deux FK pointant vers elle-même, permettant de
+naviguer l'arbre généalogique sans table intermédiaire. Les deux champs sont nullable
+(parenté inconnue possible).
+
+\paragraph{2. Table \texttt{historique\_statut} pour la traçabilité ACID}
+Plutôt que d'écraser le champ \texttt{statut}, une table dédiée archive chaque
+transition (ancien → nouveau statut avec horodatage), alimentée \emph{exclusivement}
+par le trigger \texttt{trg\_historique\_statut}. En cas de litige commercial,
+l'éleveur peut reconstituer l'historique complet de chaque animal.
+
+\paragraph{3. Table \texttt{alertes} polyvalente}
+La table centralise les alertes automatiques (triggers, events) \emph{et} les alertes
+manuelles. Le champ \texttt{animal\_id} est nullable pour les rapports globaux
+(résumé hebdomadaire du troupeau). Le champ \texttt{traitee} (BOOLEAN) permet à
+l'interface de filtrer les alertes actives sans jamais supprimer l'historique.
+
+% ────────────────────────────────────────────────────────────
+\chapter{Éléments PL/SQL — Description et justification métier}
+% ────────────────────────────────────────────────────────────
+
+Le moteur PL/SQL de \bovibot{} repose sur \textbf{3 procédures stockées},
+\textbf{4 fonctions}, \textbf{4 triggers} et \textbf{3 events MySQL Scheduler}
+— soit 14 objets SQL (contre 9 requis par le CDC). Ces éléments constituent la couche
+logique métier de la base de données.
+
+\section{Procédures stockées}
+
+Les procédures encapsulent les opérations d'écriture critiques dans des transactions
+ACID (START TRANSACTION / COMMIT / ROLLBACK) et sont les \emph{seuls} points d'entrée
+que le LLM peut appeler pour modifier les données.
+
+\subsection{\texttt{sp\_enregistrer\_pesee}}
+
+\textbf{Rôle :} Enregistre une pesée, met à jour \texttt{poids\_actuel}, calcule le GMQ
+par rapport à la pesée précédente et insère une alerte si GMQ $<$ 300 g/jour.
+
+\begin{center}\small
+  \begin{tabular}{@{}llL{7cm}@{}}
+    \toprule
+    \textbf{Paramètre} & \textbf{Type} & \textbf{Description} \\
+    \midrule
+    \texttt{p\_animal\_id} & \texttt{INT}          & Identifiant de l'animal \\
+    \texttt{p\_poids\_kg}  & \texttt{DECIMAL(6,2)} & Poids mesuré en kg \\
+    \texttt{p\_date}       & \texttt{DATE}         & Date de la pesée \\
+    \texttt{p\_agent}      & \texttt{VARCHAR(100)} & Agent ayant effectué la pesée \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+\textbf{Justification métier :} L'éleveur ne doit pas calculer manuellement le GMQ
+ni mettre à jour le poids courant. Cette procédure garantit la cohérence des données
+et automatise la détection des retards de croissance.
+
+\textbf{Comportement ACID :} Un \texttt{EXIT HANDLER FOR SQLEXCEPTION} déclenche un
+ROLLBACK complet en cas d'erreur. L'INSERT dans \texttt{pesees} et l'UPDATE de
+\texttt{poids\_actuel} sont atomiques.
+
+\textbf{Exemple d'appel :}
+\begin{center}
+  \texttt{CALL sp\_enregistrer\_pesee(1, 325.00, '2026-04-12', 'BoviBot');}
+\end{center}
+
+\medskip\noindent\annexeref{app:sp_enregistrer_pesee}
+
+\subsection{\texttt{sp\_declarer\_vente}}
+
+\textbf{Rôle :} Vérifie que l'animal est actif (sinon SIGNAL SQLSTATE '45000'),
+enregistre la vente et change le statut en \texttt{'vendu'}.
+
+\textbf{Justification métier :} Empêche la vente d'animaux déjà vendus, morts ou en
+quarantaine. Un animal ne peut pas être vendu deux fois.
+
+\textbf{Exemple d'appel :}
+\begin{center}
+  \texttt{CALL sp\_declarer\_vente(3, 'Oumar Ba', '771234567', 280000.00, 195.00, '2026-04-12');}
+\end{center}
+
+\medskip\noindent\annexeref{app:sp_declarer_vente}
+
+\subsection{\texttt{sp\_rapport\_nutritionnel}}
+
+\textbf{Rôle :} Génère un rapport nutritionnel des 30 derniers jours pour un animal :
+quantité totale consommée, coût total, aliment principal, GMQ actuel et coût par kg
+de gain. Insère une alerte informative dans \texttt{alertes}.
+
+\textbf{Justification métier :} Ce ratio (coût / kg de prise de poids) oriente les
+décisions d'ajustement des rations.
+
+\medskip\noindent\annexeref{app:sp_rapport_nutritionnel}
+
+\section{Fonctions}
+
+Les fonctions encapsulent les calculs métier récurrents. Le SYSTEM\_PROMPT interdit
+au LLM de recalculer l'âge, le GMQ ou le coût en dehors des fonctions dédiées.
+
+\subsection{\texttt{fn\_age\_en\_mois}}
+
+\textbf{Retourne :} \texttt{INT} — âge de l'animal en mois entiers.
+
+\textbf{Formule :} $\texttt{TIMESTAMPDIFF(MONTH, date\_naissance, CURDATE())}$
+
+\textbf{Utilisation :} Filtrage veaux $<$ 6 mois, classement par tranche d'âge,
+trigger \texttt{trg\_alerte\_poids\_faible}.
+
+\medskip\noindent\annexeref{app:fn_age_en_mois}
+
+\subsection{\texttt{fn\_gmq}}
+
+\textbf{Retourne :} \texttt{DECIMAL(6,3)} — Gain Moyen Quotidien en kg/jour.
+
+\textbf{Formule :}
+\[
+  \text{GMQ} = \frac{\text{poids\_dernière\_pesée} - \text{poids\_première\_pesée}}{\text{nombre de jours}}
+\]
+
+Retourne 0 si une seule pesée ou délai nul.
+
+\medskip\noindent\annexeref{app:fn_gmq}
+
+\subsection{\texttt{fn\_cout\_total\_elevage}}
+
+\textbf{Retourne :} \texttt{DECIMAL(12,2)} — coût total en FCFA.
+
+\textbf{Formule :}
+$\sum(\texttt{quantite\_kg} \times \texttt{cout\_unitaire\_kg}) + \sum(\texttt{cout\_sante})$
+
+\medskip\noindent\annexeref{app:fn_cout_total_elevage}
+
+\subsection{\texttt{fn\_rentabilite\_estimee}}
+
+\textbf{Retourne :} \texttt{DECIMAL(12,2)} — rentabilité estimée en FCFA.
+
+\textbf{Formule :}
+$(\texttt{poids\_actuel} \times 1300\ \text{FCFA/kg}) - \texttt{fn\_cout\_total\_elevage}()$
+
+Le prix de 1 300 FCFA/kg correspond au cours moyen du bétail sur pied au marché de Dakar.
+
+\medskip\noindent\annexeref{app:fn_rentabilite_estimee}
+
+\section{Triggers}
+
+\begin{table}[H]
+\caption{Récapitulatif des triggers \bovibot{}}
+\label{tab:triggers}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{5.2cm}L{3.2cm}L{2.8cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Trigger} & \textbf{Événement} & \textbf{Condition} & \textbf{Action} \\
+  \midrule
+  \texttt{trg\_historique\_statut}       & BEFORE UPDATE animaux & statut modifié                   & INSERT → \texttt{historique\_statut} \\
+  \texttt{trg\_alerte\_vaccination}      & AFTER INSERT sante    & \texttt{prochain\_rdv} dépassé   & Alerte CRITICAL \\
+  \texttt{trg\_alerte\_poids\_faible}    & AFTER INSERT pesees   & veau $<$6 mois, poids $<$60 kg   & Alerte CRITICAL \\
+  \texttt{trg\_alerte\_pesee\_manquante} & AFTER INSERT pesees   & sans pesée $>$30 j               & Alerte WARNING \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{\texttt{trg\_historique\_statut}}
+Se déclenche \emph{avant} toute mise à jour sur \texttt{animaux}. Si
+\texttt{OLD.statut $\neq$ NEW.statut}, insère une ligne dans \texttt{historique\_statut}.
+Ce trigger est l'unique source d'écriture de cette table d'audit.
+\medskip\noindent\annexeref{app:trg_historique_statut}
+
+\subsection{\texttt{trg\_alerte\_vaccination}}
+Après chaque INSERT dans \texttt{sante}, si \texttt{prochain\_rdv IS NOT NULL AND
+prochain\_rdv < CURDATE()}, une alerte CRITICAL est créée. Un rappel déjà dépassé
+au moment de la saisie indique un oubli avéré.
+\medskip\noindent\annexeref{app:trg_alerte_vaccination}
+
+\subsection{\texttt{trg\_alerte\_poids\_faible}}
+Utilise \texttt{fn\_age\_en\_mois()} pour vérifier si l'animal a $\leq$ 6 mois et pèse
+$<$ 60 kg, auquel cas une alerte CRITICAL est créée. Un veau sous 60 kg avant 6 mois
+présente un risque vital immédiat.
+\medskip\noindent\annexeref{app:trg_alerte_poids_faible}
+
+\subsection{\texttt{trg\_alerte\_pesee\_manquante}}
+À chaque nouvelle pesée saisie, vérifie l'ensemble du troupeau et signale les animaux
+sans pesée depuis plus de 30 jours (anti-doublon journalier intégré).
+\medskip\noindent\annexeref{app:trg_alerte_pesee_manquante}
+
+\section{Events MySQL Scheduler}
+
+\begin{table}[H]
+\caption{Récapitulatif des events MySQL Scheduler}
+\label{tab:events}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{5cm}L{2.5cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Event} & \textbf{Fréquence} & \textbf{Logique métier} \\
+  \midrule
+  \texttt{evt\_alerte\_velages}       & Quotidienne  & Alertes INFO pour les vêlages prévus dans les 7 prochains jours \\
+  \texttt{evt\_rapport\_croissance}   & Hebdomadaire & Résumé du nombre d'animaux actifs dans \texttt{alertes} \\
+  \texttt{evt\_alerte\_cout\_mensuel} & Mensuelle    & Bilan des coûts d'alimentation du mois écoulé \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+Tous les events nécessitent \texttt{SET GLOBAL event\_scheduler = ON} (activé
+automatiquement par \texttt{schema.sql}).
+
+\noindent\annexeref{app:events}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Architecture technique}
+% ────────────────────────────────────────────────────────────
+
+\section{Vue d'ensemble}
+
+\bovibot{} repose sur une architecture trois tiers containerisée, déployée sur un VPS
+Ubuntu~22.04. Trois services Docker communiquent sur un réseau interne isolé — la
+base de données n'est jamais exposée directement sur l'internet.
+
+\begin{table}[H]
+\caption{Couches de l'architecture \bovibot{}}
+\label{tab:architecture}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{2.5cm}L{3.5cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Couche} & \textbf{Technologie} & \textbf{Rôle} \\
+  \midrule
+  Présentation & HTML / CSS / JavaScript    & 9 pages : tableau de bord, chat, troupeau, santé, généalogie, gestation, rapports, stocks, paramètres \\
+  Proxy        & Nginx (port 8080)          & Reverse proxy, CORS, service des fichiers statiques \\
+  Application  & Python FastAPI (port 8002) & 29 routes REST, orchestration LLM, appels procédures stockées, validation SQL \\
+  Intelligence & DeepSeek / gpt-4o-mini     & Text-to-SQL, détection d'intention (query / action / info) \\
+  Données      & MySQL 8.x + Event Scheduler& Stockage, PL/SQL, triggers, events automatisés \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Réseau Docker interne}
+
+Les services communiquent via un réseau Docker dédié (\texttt{bovibot\_network}).
+MySQL n'est jamais exposé sur un port public.
+
+\begin{center}
+  \texttt{Internet $\longrightarrow$ Nginx (8080) $\longrightarrow$ backend:8002 $\longrightarrow$ db:3306}
+\end{center}
+
+\textbf{Choix techniques Docker :}
+\begin{itemize}[itemsep=2pt]
+  \item Image backend : \texttt{python:3.11-slim} — empreinte minimale.
+  \item \texttt{depends\_on: condition: service\_healthy} — le backend ne démarre que
+    lorsque MySQL est prêt.
+  \item Volume nommé \texttt{mysql\_data} — les données survivent aux redémarrages.
+  \item Variables sensibles (\texttt{DB\_PASSWORD}, \texttt{LLM\_API\_KEY}) via
+    fichier \texttt{.env} non versionné.
+\end{itemize}
+
+\section{Flux de traitement d'une requête}
+
+\begin{enumerate}[itemsep=4pt]
+  \item \textbf{Saisie} de la question dans \texttt{chat.html}.
+  \item \textbf{POST /api/chat} → FastAPI : \texttt{sanitize\_input()} bloque
+    les patterns d'injection.
+  \item \textbf{ask\_llm()} → LLM (SYSTEM\_PROMPT + schéma BDD + 6 derniers messages).
+  \item \textbf{LLM retourne} un JSON structuré \texttt{\{type, sql | action, params\}}.
+  \item \textbf{Routage} :
+    \begin{itemize}
+      \item \texttt{type="query"} → \texttt{validate\_sql()} → exécution SELECT MySQL.
+      \item \texttt{type="action"} → confirmation affichée → (après "Oui")
+        \texttt{CALL sp\_*(...)}.
+      \item \texttt{type="info"} → question de clarification à l'utilisateur.
+    \end{itemize}
+  \item \textbf{Réponse} formatée renvoyée et affichée dans l'interface.
+\end{enumerate}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Prompt Engineering et intégration LLM}
+% ────────────────────────────────────────────────────────────
+
+\section{Stratégie de prompting — Les 4 piliers}
+
+La stratégie retenue est le \textbf{Few-Shot Prompting à 4 blocs} implémentée dans
+\texttt{app.py} via la fonction \texttt{get\_system\_prompt()}.
+
+\subsection{Pilier 1 (BLOC 1) — Format de réponse obligatoire}
+
+Le LLM répond \emph{exclusivement} en JSON pur (zéro Markdown), garantissant
+l'interopérabilité directe avec le backend FastAPI :
+
+\begin{center}\small
+  \begin{tabularx}{\textwidth}{@{}L{2.2cm}X@{}}
+    \toprule
+    \textbf{Type} & \textbf{Structure JSON} \\
+    \midrule
+    Consultation & \texttt{\{"type":"query",\ "sql":"SELECT ...",\ "explication":"..."\}} \\
+    Action       & \texttt{\{"type":"action",\ "action":"nom\_proc",\ "params":\{...\},\ "confirmation":"..."\}} \\
+    Info/Manque  & \texttt{\{"type":"info",\ "sql":null,\ "explication":"..."\}} \\
+    \bottomrule
+  \end{tabularx}
+\end{center}
+
+\subsection{Pilier 2 (BLOC 2) — Règles SQL et abstraction PL/SQL}
+
+Trois règles absolues :
+\begin{enumerate}[itemsep=2pt]
+  \item Filtrer \texttt{statut='actif'} par défaut.
+  \item Utilisation obligatoire des fonctions PL/SQL
+    (\texttt{fn\_age\_en\_mois}, \texttt{fn\_gmq}, \texttt{fn\_cout\_total\_elevage},
+    \texttt{fn\_rentabilite\_estimee}) — aucun calcul brut en SQL autorisé.
+  \item Interdiction de \texttt{DELETE}, \texttt{DROP}, \texttt{INSERT} directs.
+    Limite de 100 résultats.
+\end{enumerate}
+
+\subsection{Pilier 3 (BLOC 3) — Procédures et mots-clés déclencheurs}
+
+\begin{center}\small
+  \begin{tabularx}{\textwidth}{@{}L{5.2cm}X@{}}
+    \toprule
+    \textbf{Procédure} & \textbf{Mots-clés déclencheurs} \\
+    \midrule
+    \texttt{sp\_enregistrer\_pesee}    & "enregistre pesée", "pèse", "nouveau poids" \\
+    \texttt{sp\_declarer\_vente}       & "déclare vente", "vends", "cède l'animal" \\
+    \texttt{sp\_rapport\_nutritionnel} & "rapport nutritionnel", "consommation", "ration" \\
+    \bottomrule
+  \end{tabularx}
+\end{center}
+
+\subsection{Pilier 4 (BLOC 4) — Résolution des identifiants et ambiguïté}
+
+L'éleveur utilise les \texttt{numero\_tag} (ex : TAG-001), pas les \texttt{id} internes.
+En action, le LLM passe le tag directement ; le backend résout l'ID.
+\textbf{Interdiction des sous-requêtes SQL comme valeur de paramètre.}
+Si l'animal est inconnu → type \texttt{info} + question de clarification.
+
+\medskip\noindent Le SYSTEM\_PROMPT complet est disponible en~\annexeref{app:sysprompt}
+
+\section{Exemples de dialogues LLM}
+
+\subsection{Dialogue 1 — Consultation globale}
+
+\textbf{Utilisateur :} \textit{«~Liste tous les animaux actifs avec leur âge et GMQ~»}
+
+\textbf{Type détecté :} \texttt{query}
+
+\textbf{SQL généré :}
+\begin{center}\small
+\texttt{SELECT a.numero\_tag, a.nom, r.nom AS race, fn\_age\_en\_mois(a.id) AS age\_mois,\\
+a.poids\_actuel, fn\_gmq(a.id) AS gmq\_kg\_jour\\
+FROM animaux a LEFT JOIN races r ON a.race\_id = r.id\\
+WHERE a.statut = 'actif' LIMIT 100}
+\end{center}
+
+\textbf{Résultat :} 7 animaux avec âge et GMQ pré-calculés par les fonctions MySQL.
+
+\subsection{Dialogue 2 — Action avec confirmation (pesée)}
+
+\textbf{Utilisateur :} \textit{«~Enregistre une pesée de 325 kg pour TAG-001 aujourd'hui~»}
+
+\begin{enumerate}[itemsep=2pt]
+  \item LLM retourne \texttt{type:"action"} + message de confirmation.
+  \item Système affiche : \textit{«~Confirmez-vous 325 kg pour TAG-001 le 2026-04-12 ?~»}
+  \item Utilisateur répond «~Oui~».
+  \item Backend résout TAG-001 → \texttt{animal\_id = 1}, exécute :
+    \texttt{CALL sp\_enregistrer\_pesee(1, 325.00, '2026-04-12', 'BoviBot');}
+  \item Réponse : \textit{«~Pesée enregistrée. GMQ actuel : 0.357 kg/jour. Aucune alerte.~»}
+\end{enumerate}
+
+\subsection{Dialogue 3 — Gestion de l'ambiguïté (vente avec donnée manquante)}
+
+\textbf{Utilisateur :} \textit{«~Déclare la vente de TAG-003 à Oumar Ba pour 280 000 FCFA~»}
+
+Le LLM détecte qu'il manque le poids de vente (requis par \texttt{sp\_declarer\_vente}).
+Il retourne \texttt{type:"info"} et pose la question. Après réponse de l'utilisateur,
+il relance avec les paramètres complets.
+
+\section{Sécurité — Double protection}
+
+\begin{table}[H]
+\caption{Double couche de sécurité LLM — \bovibot{}}
+\label{tab:securite}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{4cm}L{4cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Couche} & \textbf{Fonction} & \textbf{Mécanisme} \\
+  \midrule
+  Couche 1 — Entrée & \texttt{sanitize\_input()} & 26+ regex de détection de prompt injection (jailbreak, DAN, bypass…) → HTTP 400 \\
+  Couche 2 — Sortie & \texttt{validate\_sql()}   & Le SQL généré par le LLM doit commencer par SELECT. Mots-clés interdits : INSERT, UPDATE, DELETE, DROP, TRUNCATE, ALTER, CREATE, UNION, OUTFILE… → HTTP 400 \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Tests}
+% ────────────────────────────────────────────────────────────
+
+\section{Tests cas normaux — 5 cas du Cahier des Charges}
+
+\begin{table}[H]
+\caption{Résultats des 5 cas CDC validés en production}
+\label{tab:tests_normaux}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}cL{3.5cm}L{3.2cm}XC{0.7cm}@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{\#} & \textbf{Question utilisateur} & \textbf{Type détecté} & \textbf{Résultat} & \\
+  \midrule
+  CDC-01 & Liste animaux actifs + âge + GMQ   & \texttt{query}                          & 7 animaux, \texttt{fn\_gmq()} utilisé              & \okmark \\
+  CDC-02 & Animaux GMQ $<$ 0.3 kg/j           & \texttt{query}                          & TAG-006 (0.25), TAG-007 (0.18)                     & \okmark \\
+  CDC-03 & Femelles vêlant dans 30 j           & \texttt{query}                          & TAG-002 — vêlage 2026-05-10                        & \okmark \\
+  CDC-04 & Pesée 325 kg pour TAG-001           & \texttt{action} + confirmation          & Pesée insérée, GMQ calculé                         & \okmark \\
+  CDC-05 & Vente TAG-003, 280\,000 F           & \texttt{info} → \texttt{action}         & Vente enregistrée, statut vendu                    & \okmark \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Tests cas limites}
+
+\begin{table}[H]
+\caption{Résultats des 6 cas limites de sécurité et de robustesse}
+\label{tab:tests_limites}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{1.2cm}L{3.2cm}L{3.5cm}XC{0.7cm}@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Cas} & \textbf{Scénario} & \textbf{Comportement attendu} & \textbf{Mécanisme} & \\
+  \midrule
+  CL-01 & Veau 4 mois, 45 kg             & Alerte CRITICAL automatique               & \texttt{trg\_alerte\_poids\_faible}  & \okmark \\
+  CL-02 & Vente animal déjà vendu         & SQLSTATE '45000' + ROLLBACK               & \texttt{sp\_declarer\_vente} guard   & \okmark \\
+  CL-03 & RDV vaccination dépassé         & Alerte CRITICAL créée                     & \texttt{trg\_alerte\_vaccination}    & \okmark \\
+  CL-04 & Prompt injection (jailbreak)    & HTTP 400 avant transmission au LLM        & \texttt{sanitize\_input()}           & \okmark \\
+  CL-05 & Injection SQL via chat          & HTTP 400 — mot-clé INSERT interdit        & \texttt{validate\_sql()}             & \okmark \\
+  CL-06 & Animal inexistant (TAG-999)     & Type \texttt{info} + demande clarification& BLOC~4 du SYSTEM\_PROMPT            & \okmark \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Guide d'installation et de déploiement}
+% ────────────────────────────────────────────────────────────
+
+\section{Prérequis}
+
+\begin{table}[H]
+\caption{Prérequis de déploiement \bovibot{}}
+\label{tab:prereqs}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{4cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Élément} & \textbf{Requis} \\
+  \midrule
+  OS              & Ubuntu 22.04 LTS (VPS ou machine locale) \\
+  Docker + Compose& v24+ (\texttt{curl -fsSL https://get.docker.com | sh}) \\
+  Clé API LLM     & OpenAI, DeepSeek, ou tout provider compatible OpenAI SDK \\
+  RAM             & 2 Go minimum \\
+  Ports ouverts   & 8080 (HTTP), 22 (SSH) \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Installation en 4 commandes}
+
+\begin{bashbox}{Terminal — Déploiement VPS}
+# 1. Cloner le dépôt
+git clone https://github.com/MADENIYOU/bovibot.git && cd bovibot
+
+# 2. Configurer les variables d'environnement
+cp .env.example .env
+nano .env          # Renseigner DB_PASSWORD et LLM_API_KEY
+
+# 3. Lancer les 3 services (MySQL + FastAPI + Nginx)
+docker compose up -d --build
+
+# 4. Vérifier le déploiement
+docker compose ps
+\end{bashbox}
+
+\begin{warnbox}
+  \textbf{Point critique :} \texttt{DB\_HOST=db} (nom du service Docker dans le réseau
+  interne) et \textbf{non} \texttt{localhost}. C'est l'erreur la plus fréquente en
+  migration local $\to$ Docker.
+\end{warnbox}
+
+\section{Vérifications post-déploiement}
+
+\begin{bashbox}{Terminal — Vérifications}
+curl http://localhost:8080/health      # {"status":"ok"}
+curl http://localhost:8080/api/animaux # JSON du troupeau
+curl http://localhost:8080/api/alertes # Alertes actives
+docker compose logs -f backend         # Logs FastAPI temps réel
+\end{bashbox}
+
+\section{Activation de l'Event Scheduler MySQL}
+
+Activé automatiquement par \texttt{schema.sql}. Pour vérifier :
+
+\begin{bashbox}{MySQL — Vérification}
+docker compose exec db mysql -u root -p bovibot
+SHOW VARIABLES LIKE 'event_scheduler';  -- Value: ON
+\end{bashbox}
+
+\section{Mise à jour}
+
+\begin{bashbox}{Terminal — Mise à jour}
+git pull origin main
+docker compose up -d --build
+# Volume mysql_data preserve toutes les donnees
+\end{bashbox}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Conclusion et perspectives}
+% ────────────────────────────────────────────────────────────
+
+\section{Bilan des objectifs atteints}
+
+\begin{table}[H]
+\caption{Bilan des objectifs par rapport au Cahier des Charges}
+\label{tab:bilan}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{4.5cm}cX@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Critère CDC} & \textbf{} & \textbf{Détail} \\
+  \midrule
+  8 tables MySQL (3NF)           & \okmark & 11 tables (+ \texttt{historique\_statut}, \texttt{production\_lait}, \texttt{stocks}) \\
+  2 procédures stockées          & \okmark & 3 implémentées (+ \texttt{sp\_rapport\_nutritionnel}) \\
+  2 fonctions PL/SQL             & \okmark & 4 implémentées (+ \texttt{fn\_cout\_total\_elevage}, \texttt{fn\_rentabilite\_estimee}) \\
+  3 triggers                     & \okmark & 4 implémentés (+ \texttt{trg\_alerte\_pesee\_manquante}) \\
+  2 events MySQL                 & \okmark & 3 implémentés (+ \texttt{evt\_alerte\_cout\_mensuel}) \\
+  LLM Text-to-SQL                & \okmark & 5 cas CDC validés, fonctions PL/SQL intégrées \\
+  LLM actions avec confirmation  & \okmark & Flux à 2 étapes, confirmation explicite \\
+  Interface web                  & \okmark & 9 pages HTML \\
+  Déploiement en ligne           & \okmark & VPS Ubuntu 22.04 via Docker Compose \\
+  \textit{Sécurité (bonus)}      & \okmark & Double protection : \texttt{sanitize\_input()} + \texttt{validate\_sql()} \\
+  \textit{Export PDF (bonus)}    & \okmark & ReportLab — fiche individuelle + rapport complet \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Limites actuelles}
+
+\begin{itemize}[itemsep=4pt]
+  \item \textbf{Pas de notifications push :} les alertes critiques ne déclenchent pas
+    d'envoi SMS ou email.
+  \item \textbf{Pas d'authentification utilisateur :} toute personne ayant l'URL
+    peut accéder aux données.
+  \item \textbf{Performance sur grands troupeaux :} les fonctions \texttt{fn\_gmq()} et
+    \texttt{fn\_cout\_total\_elevage()} sont appelées ligne par ligne — des index
+    supplémentaires seraient nécessaires au-delà de 50 animaux.
+  \item \textbf{LLM déterministe :} \texttt{temperature=0} maximise la cohérence mais
+    limite la variété des reformulations.
+\end{itemize}
+
+\section{Perspectives d'amélioration}
+
+\begin{enumerate}[itemsep=4pt]
+  \item \textbf{WebSocket} — remplacer le polling (30 s) par une connexion persistante
+    pour les alertes critiques en temps réel.
+  \item \textbf{Authentification JWT} — système de login sécurisé.
+  \item \textbf{Notifications multi-canaux} — SMS via Orange API Sénégal ou Twilio.
+  \item \textbf{Application mobile} — React Native ou Flutter pour un accès terrain.
+  \item \textbf{Export Excel} — fichier \texttt{.xlsx} via \texttt{openpyxl}.
+  \item \textbf{Analyse prédictive} — prédire la date optimale de vente par animal
+    via régression sur le GMQ historique.
+  \item \textbf{Optimisation PL/SQL} — colonne calculée pour le GMQ afin d'éviter
+    les recalculs répétés sur les grands troupeaux.
+\end{enumerate}
+
+% ════════════════════════════════════════════════════════════
+%  ANNEXES
+% ════════════════════════════════════════════════════════════
+\newpage
+\appendix
+\addappheadtotoc
+
+% ────────────────────────────────────────────────────────────
+\chapter{Procédures stockées — Code SQL complet}
+\label{app:procedures}
+% ────────────────────────────────────────────────────────────
+
+\section{\texttt{sp\_enregistrer\_pesee}}
+\label{app:sp_enregistrer_pesee}
+
+\begin{sqlbox}{sp\_enregistrer\_pesee}
+DELIMITER $$
+CREATE PROCEDURE sp_enregistrer_pesee(
+    IN p_animal_id INT,
+    IN p_poids_kg  DECIMAL(6,2),
+    IN p_date      DATE,
+    IN p_agent     VARCHAR(100)
+)
+BEGIN
+    DECLARE v_derniere_pesee DECIMAL(6,2);
+    DECLARE v_jours INT;
+    DECLARE v_gmq   DECIMAL(6,2);
+
+    -- Gestionnaire ACID : annule tout si erreur SQL
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+        -- 1. Inserer la pesee dans l'historique
+        INSERT INTO pesees (animal_id, poids_kg, date_pesee, agent)
+        VALUES (p_animal_id, p_poids_kg, p_date, p_agent);
+
+        -- 2. Mettre a jour le poids courant de l'animal
+        UPDATE animaux SET poids_actuel = p_poids_kg WHERE id = p_animal_id;
+
+        -- 3. Recuperer la pesee precedente pour calculer le GMQ
+        SELECT poids_kg, DATEDIFF(p_date, date_pesee)
+        INTO v_derniere_pesee, v_jours
+        FROM pesees
+        WHERE animal_id = p_animal_id
+          AND date_pesee < p_date
+        ORDER BY date_pesee DESC
+        LIMIT 1;
+
+        -- 4. Alerte si GMQ < 300 g/jour
+        IF v_derniere_pesee IS NOT NULL AND v_jours > 0 THEN
+            SET v_gmq = (p_poids_kg - v_derniere_pesee) / v_jours;
+            IF v_gmq < 0.3 THEN
+                INSERT INTO alertes (animal_id, type, message, niveau)
+                VALUES (p_animal_id, 'poids',
+                    CONCAT('GMQ faible : ', ROUND(v_gmq * 1000),
+                           ' g/jour (seuil : 300 g/jour)'),
+                    'warning');
+            END IF;
+        END IF;
+
+    COMMIT;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{sp\_declarer\_vente}}
+\label{app:sp_declarer_vente}
+
+\begin{sqlbox}{sp\_declarer\_vente}
+DELIMITER $$
+CREATE PROCEDURE sp_declarer_vente(
+    IN p_animal_id   INT,
+    IN p_acheteur    VARCHAR(150),
+    IN p_telephone   VARCHAR(20),
+    IN p_prix        DECIMAL(12,2),
+    IN p_poids_vente DECIMAL(6,2),
+    IN p_date_vente  DATE
+)
+BEGIN
+    DECLARE v_statut VARCHAR(20);
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+        -- 1. Verifier que l'animal est en statut 'actif'
+        SELECT statut INTO v_statut
+        FROM animaux WHERE id = p_animal_id;
+
+        IF v_statut != 'actif' THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT =
+                    'Cet animal ne peut pas etre vendu (statut non actif)';
+        END IF;
+
+        -- 2. Enregistrer la vente
+        INSERT INTO ventes (animal_id, acheteur, telephone_acheteur,
+                            date_vente, poids_vente_kg, prix_fcfa)
+        VALUES (p_animal_id, p_acheteur, p_telephone,
+                p_date_vente, p_poids_vente, p_prix);
+
+        -- 3. Changer le statut (declenche trg_historique_statut)
+        UPDATE animaux SET statut = 'vendu' WHERE id = p_animal_id;
+
+    COMMIT;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{sp\_rapport\_nutritionnel}}
+\label{app:sp_rapport_nutritionnel}
+
+\begin{sqlbox}{sp\_rapport\_nutritionnel}
+DELIMITER $$
+CREATE PROCEDURE sp_rapport_nutritionnel(IN p_animal_id INT)
+BEGIN
+    DECLARE v_quantite_totale   DECIMAL(10,2);
+    DECLARE v_cout_total        DECIMAL(12,2);
+    DECLARE v_aliment_principal VARCHAR(100);
+    DECLARE v_gmq               DECIMAL(6,3);
+    DECLARE v_cout_par_kg_gain  DECIMAL(12,2) DEFAULT 0;
+
+    -- Consommation et cout sur les 30 derniers jours
+    SELECT SUM(quantite_kg), SUM(quantite_kg * cout_unitaire_kg)
+    INTO v_quantite_totale, v_cout_total
+    FROM alimentation
+    WHERE animal_id = p_animal_id
+      AND date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
+
+    -- Aliment le plus distribue (en poids)
+    SELECT type_aliment INTO v_aliment_principal
+    FROM alimentation
+    WHERE animal_id = p_animal_id
+      AND date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY type_aliment
+    ORDER BY SUM(quantite_kg) DESC
+    LIMIT 1;
+
+    -- Calcul du cout par kg de gain
+    SET v_gmq = fn_gmq(p_animal_id);
+    IF v_gmq > 0 THEN
+        SET v_cout_par_kg_gain = (v_cout_total / 30) / v_gmq;
+    END IF;
+
+    -- Alerte informative
+    IF v_quantite_totale IS NOT NULL THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (p_animal_id, 'alimentation',
+            CONCAT('Rapport 30j: ', ROUND(v_quantite_totale,1), 'kg (',
+                   v_aliment_principal, '). Cout: ',
+                   ROUND(v_cout_total,0), ' FCFA.'),
+            'info');
+    END IF;
+
+    -- Retourner les indicateurs
+    SELECT
+        v_quantite_totale   AS quantite_totale_30j,
+        v_cout_total        AS cout_total_30j,
+        v_aliment_principal AS aliment_principal,
+        v_gmq               AS gmq_actuel,
+        v_cout_par_kg_gain  AS cout_kg_gain;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Fonctions PL/SQL — Code SQL complet}
+\label{app:fonctions}
+% ────────────────────────────────────────────────────────────
+
+\section{\texttt{fn\_age\_en\_mois}}
+\label{app:fn_age_en_mois}
+
+\begin{sqlbox}{fn\_age\_en\_mois}
+DELIMITER $$
+CREATE FUNCTION fn_age_en_mois(p_animal_id INT)
+RETURNS INT
+READS SQL DATA
+BEGIN
+    DECLARE v_date_naissance DATE;
+    SELECT date_naissance INTO v_date_naissance
+    FROM animaux WHERE id = p_animal_id;
+    RETURN TIMESTAMPDIFF(MONTH, v_date_naissance, CURDATE());
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{fn\_gmq}}
+\label{app:fn_gmq}
+
+\begin{sqlbox}{fn\_gmq}
+DELIMITER $$
+CREATE FUNCTION fn_gmq(p_animal_id INT)
+RETURNS DECIMAL(6,3)
+READS SQL DATA
+BEGIN
+    DECLARE v_premiere_pesee DECIMAL(6,2);
+    DECLARE v_derniere_pesee DECIMAL(6,2);
+    DECLARE v_premiere_date  DATE;
+    DECLARE v_derniere_date  DATE;
+    DECLARE v_jours INT;
+
+    SELECT poids_kg, date_pesee INTO v_premiere_pesee, v_premiere_date
+    FROM pesees WHERE animal_id = p_animal_id
+    ORDER BY date_pesee ASC LIMIT 1;
+
+    SELECT poids_kg, date_pesee INTO v_derniere_pesee, v_derniere_date
+    FROM pesees WHERE animal_id = p_animal_id
+    ORDER BY date_pesee DESC LIMIT 1;
+
+    SET v_jours = DATEDIFF(v_derniere_date, v_premiere_date);
+
+    -- Retourner 0 si une seule pesee ou aucune
+    IF v_jours = 0 OR v_premiere_pesee IS NULL THEN
+        RETURN 0;
+    END IF;
+
+    RETURN (v_derniere_pesee - v_premiere_pesee) / v_jours;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{fn\_cout\_total\_elevage}}
+\label{app:fn_cout_total_elevage}
+
+\begin{sqlbox}{fn\_cout\_total\_elevage}
+DELIMITER $$
+CREATE FUNCTION fn_cout_total_elevage(p_animal_id INT)
+RETURNS DECIMAL(12,2)
+READS SQL DATA
+BEGIN
+    DECLARE v_alim  DECIMAL(12,2) DEFAULT 0;
+    DECLARE v_sante DECIMAL(12,2) DEFAULT 0;
+
+    SELECT COALESCE(SUM(quantite_kg * cout_unitaire_kg), 0)
+    INTO v_alim FROM alimentation WHERE animal_id = p_animal_id;
+
+    SELECT COALESCE(SUM(cout), 0)
+    INTO v_sante FROM sante WHERE animal_id = p_animal_id;
+
+    RETURN v_alim + v_sante;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{fn\_rentabilite\_estimee}}
+\label{app:fn_rentabilite_estimee}
+
+\begin{sqlbox}{fn\_rentabilite\_estimee}
+DELIMITER $$
+CREATE FUNCTION fn_rentabilite_estimee(p_animal_id INT)
+RETURNS DECIMAL(12,2)
+READS SQL DATA
+BEGIN
+    DECLARE v_poids          DECIMAL(6,2);
+    DECLARE v_cout_total     DECIMAL(12,2);
+    DECLARE v_prix_marche_kg DECIMAL(6,2) DEFAULT 1300.00;
+
+    SELECT poids_actuel INTO v_poids FROM animaux WHERE id = p_animal_id;
+    SET v_cout_total = fn_cout_total_elevage(p_animal_id);
+
+    IF v_poids IS NULL OR v_cout_total IS NULL THEN
+        RETURN 0;
+    END IF;
+
+    RETURN (v_poids * v_prix_marche_kg) - v_cout_total;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Triggers — Code SQL complet}
+\label{app:triggers}
+% ────────────────────────────────────────────────────────────
+
+\section{\texttt{trg\_historique\_statut}}
+\label{app:trg_historique_statut}
+
+\begin{sqlbox}{trg\_historique\_statut}
+DELIMITER $$
+CREATE TRIGGER trg_historique_statut
+BEFORE UPDATE ON animaux
+FOR EACH ROW
+BEGIN
+    IF OLD.statut != NEW.statut THEN
+        INSERT INTO historique_statut (animal_id, ancien_statut, nouveau_statut)
+        VALUES (OLD.id, OLD.statut, NEW.statut);
+    END IF;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{trg\_alerte\_vaccination}}
+\label{app:trg_alerte_vaccination}
+
+\begin{sqlbox}{trg\_alerte\_vaccination}
+DELIMITER $$
+CREATE TRIGGER trg_alerte_vaccination
+AFTER INSERT ON sante
+FOR EACH ROW
+BEGIN
+    IF NEW.prochain_rdv IS NOT NULL AND NEW.prochain_rdv < CURDATE() THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (NEW.animal_id, 'vaccination',
+            CONCAT('Rappel vaccination en retard depuis le ',
+                   NEW.prochain_rdv),
+            'critical');
+    END IF;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{trg\_alerte\_poids\_faible}}
+\label{app:trg_alerte_poids_faible}
+
+\begin{sqlbox}{trg\_alerte\_poids\_faible}
+DELIMITER $$
+CREATE TRIGGER trg_alerte_poids_faible
+AFTER INSERT ON pesees
+FOR EACH ROW
+BEGIN
+    DECLARE v_age_mois INT;
+    SELECT fn_age_en_mois(NEW.animal_id) INTO v_age_mois;
+    -- Veau de moins de 6 mois : poids < 60 kg = alerte critique
+    IF v_age_mois <= 6 AND NEW.poids_kg < 60 THEN
+        INSERT INTO alertes (animal_id, type, message, niveau)
+        VALUES (NEW.animal_id, 'poids',
+            CONCAT('Poids critique pour un veau de ', v_age_mois,
+                   ' mois : ', NEW.poids_kg, ' kg'),
+            'critical');
+    END IF;
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\section{\texttt{trg\_alerte\_pesee\_manquante}}
+\label{app:trg_alerte_pesee_manquante}
+
+\begin{sqlbox}{trg\_alerte\_pesee\_manquante}
+DELIMITER $$
+CREATE TRIGGER trg_alerte_pesee_manquante
+AFTER INSERT ON pesees
+FOR EACH ROW
+BEGIN
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    SELECT a.id, 'poids',
+           CONCAT('Pesee manquante depuis > 30 jours : ', a.numero_tag),
+           'warning'
+    FROM animaux a
+    WHERE a.statut = 'actif'
+      AND NOT EXISTS (
+          SELECT 1 FROM pesees p
+          WHERE p.animal_id = a.id
+            AND p.date_pesee >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      )
+      AND NOT EXISTS (
+          -- Anti-doublon : pas deux alertes du meme type le meme jour
+          SELECT 1 FROM alertes al
+          WHERE al.animal_id = a.id
+            AND al.type = 'poids'
+            AND al.message LIKE 'Pesee manquante%'
+            AND DATE(al.date_creation) = CURDATE()
+      );
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Events MySQL Scheduler — Code SQL complet}
+\label{app:events}
+% ────────────────────────────────────────────────────────────
+
+\begin{sqlbox}{evt\_alerte\_velages (quotidien)}
+DELIMITER $$
+CREATE EVENT evt_alerte_velages
+ON SCHEDULE EVERY 1 DAY
+STARTS CURRENT_TIMESTAMP
+DO
+BEGIN
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    SELECT r.mere_id, 'velage',
+        CONCAT('Velage prevu dans ',
+               DATEDIFF(r.date_velage_prevue, CURDATE()),
+               ' jour(s) : ', a.numero_tag),
+        'info'
+    FROM reproduction r
+    JOIN animaux a ON r.mere_id = a.id
+    WHERE r.statut = 'en_gestation'
+      AND r.date_velage_prevue
+          BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+      AND NOT EXISTS (
+          SELECT 1 FROM alertes al
+          WHERE al.animal_id = r.mere_id
+            AND al.type = 'velage'
+            AND DATE(al.date_creation) = CURDATE()
+      );
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\begin{sqlbox}{evt\_rapport\_croissance (hebdomadaire)}
+DELIMITER $$
+CREATE EVENT evt_rapport_croissance
+ON SCHEDULE EVERY 1 WEEK
+STARTS CURRENT_TIMESTAMP
+DO
+BEGIN
+    DECLARE v_nb_animaux INT;
+    SELECT COUNT(*) INTO v_nb_animaux FROM animaux WHERE statut = 'actif';
+
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    VALUES (NULL, 'autre',
+        CONCAT('Rapport hebdo : ', v_nb_animaux,
+               ' animaux actifs. Consultez le tableau de bord.'),
+        'info');
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+\begin{sqlbox}{evt\_alerte\_cout\_mensuel (mensuel)}
+DELIMITER $$
+CREATE EVENT evt_alerte_cout_mensuel
+ON SCHEDULE EVERY 1 MONTH
+STARTS '2026-04-01 00:00:00'
+DO
+BEGIN
+    DECLARE v_total DECIMAL(12,2);
+
+    SELECT SUM(quantite_kg * cout_unitaire_kg) INTO v_total
+    FROM alimentation
+    WHERE date_alimentation >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH);
+
+    INSERT INTO alertes (animal_id, type, message, niveau)
+    VALUES (NULL, 'autre',
+        CONCAT('Bilan mensuel alimentation : ',
+               COALESCE(ROUND(v_total, 0), 0), ' FCFA.'),
+        'info');
+END$$
+DELIMITER ;
+\end{sqlbox}
+
+% ────────────────────────────────────────────────────────────
+\chapter{SYSTEM\_PROMPT complet}
+\label{app:sysprompt}
+% ────────────────────────────────────────────────────────────
+
+Le SYSTEM\_PROMPT suivant est défini dans \texttt{app.py} via la fonction
+\texttt{get\_system\_prompt()}. La variable \texttt{\{today\}} est injectée
+dynamiquement à chaque appel.
+
+\begin{sqlbox}{SYSTEM\_PROMPT — app.py (get\_system\_prompt)}
+Tu es BoviBot, l'assistant IA expert d'un elevage bovin.
+Tu aides l'eleveur a gerer son troupeau en traduisant ses demandes
+en SQL ou en actions.
+Nous sommes le {today}.
+
+[DB_SCHEMA]
+Tables MySQL :
+- races(id, nom, origine, poids_adulte_moyen_kg, production_lait_litre_jour)
+- animaux(id, numero_tag, nom, race_id, sexe[M/F], date_naissance,
+  poids_actuel, statut[actif/vendu/mort/quarantaine], mere_id, pere_id)
+- pesees(id, animal_id, poids_kg, date_pesee, agent)
+- sante(id, animal_id, type, date_acte, veterinaire, prochain_rdv)
+- reproduction(id, mere_id, pere_id, date_velage_prevue, statut)
+- alimentation(id, animal_id, type_aliment, quantite_kg, cout_unitaire_kg)
+- ventes(id, animal_id, acheteur, prix_fcfa, date_vente)
+- alertes(id, animal_id NULL, type, message, niveau, traitee)
+- historique_statut(id, animal_id, ancien_statut, nouveau_statut)
+- production_lait(id, animal_id, date_traite, quantite_litre, periode)
+- stocks(id, nom, categorie, quantite_disponible, unite, seuil_alerte)
+Fonctions : fn_age_en_mois(id), fn_gmq(id),
+            fn_cout_total_elevage(id), fn_rentabilite_estimee(id)
+Procedures : sp_enregistrer_pesee, sp_declarer_vente,
+             sp_rapport_nutritionnel
+
+### BLOC 1 - FORMAT DE REPONSE OBLIGATOIRE
+Reponds exclusivement en JSON pur, sans markdown.
+- Consultation : {"type":"query","sql":"SELECT...","explication":"..."}
+- Action : {"type":"action","action":"nom","params":{...},"confirmation":"..."}
+- Info : {"type":"info","sql":null,"explication":"..."}
+
+### BLOC 2 - REGLES SQL
+- Filtrer statut='actif' par defaut sauf demande explicite.
+- Utiliser fn_age_en_mois(a.id), fn_gmq(a.id),
+  fn_cout_total_elevage(a.id), fn_rentabilite_estimee(a.id).
+- Ne jamais generer DELETE ou DROP. Limiter a 100 resultats.
+
+### BLOC 3 - PROCEDURES DISPONIBLES
+1. sp_enregistrer_pesee(animal_id, poids_kg, date, agent)
+   Mots-cles : "enregistre pesee", "pese", "nouveau poids"
+2. sp_declarer_vente(animal_id, acheteur, telephone, prix_fcfa,
+                     poids_vente_kg, date_vente)
+   Mots-cles : "declare vente", "vends", "cede l'animal"
+3. sp_rapport_nutritionnel(animal_id)
+   Mots-cles : "rapport nutritionnel", "consommation", "ration"
+IMPORTANT : date au format YYYY-MM-DD. Jamais CURDATE() dans les params.
+
+### BLOC 4 - RESOLUTION DES IDENTIFIANTS
+- Consultation : WHERE numero_tag = 'TAG-XXX'.
+- Action : passe le numero_tag comme animal_id, le backend resoudra.
+- INTERDIT : sous-requetes SQL comme valeur de parametre.
+- Si animal inconnu : type 'info' pour demander clarification.
+\end{sqlbox}
+
+% ────────────────────────────────────────────────────────────
+\chapter{Déclaration d'usage de l'IA}
+\label{app:ia_declaration}
+% ────────────────────────────────────────────────────────────
+
+Conformément à la consigne §12 du Cahier des Charges, le groupe déclare l'usage
+suivant des outils d'intelligence artificielle :
+
+\begin{table}[H]
+\caption{Déclaration d'usage des outils IA — \bovibot{}}
+\label{tab:ia_declaration}
+\small\bovirowcolors
+\begin{tabularx}{\textwidth}{@{}L{2.8cm}L{4.5cm}X@{}}
+  \toprule
+  \rowcolor{bovibrown!15}
+  \textbf{Outil} & \textbf{Tâches réalisées} & \textbf{Niveau d'intervention humaine} \\
+  \midrule
+  \textbf{Claude} (Anthropic) &
+    Rédaction et structuration du rapport ; génération de squelettes PL/SQL ; justifications métier &
+    Supervision complète — chaque section relue, corrigée et validée. Code testé en base avant intégration. \\
+  \textbf{DeepSeek Chat} &
+    Modèle LLM utilisé en production dans \bovibot{} pour le Text-to-SQL &
+    Intégré via API — outputs validés par \texttt{validate\_sql()}. SYSTEM\_PROMPT rédigé par le groupe. \\
+  \textbf{ChatGPT} (OpenAI) &
+    Débogage de requêtes SQL complexes ; génération de données de test &
+    Validation humaine systématique avant insertion en base. \\
+  \textbf{GitHub Copilot} &
+    Complétion de code Python (FastAPI) et JavaScript &
+    Mode suggestion uniquement — chaque suggestion acceptée après lecture. \\
+  \textbf{Stitch AI} &
+    Conception et design des pages de l'interface frontend (maquettes, mise en page, composants visuels) &
+    Les wireframes et choix de design ont été supervisés et validés par le groupe — Stitch AI utilisé comme outil de prototypage rapide. \\
+  \textbf{Gemini} (Google) &
+    Affinage et optimisation du code frontend (JavaScript, composants UI) &
+    Chaque suggestion de code relue, comprise et adaptée par le groupe avant intégration. \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{successbox}
+  \textbf{Déclaration d'intégrité :} L'architecture du système, les choix de
+  modélisation, la stratégie de prompt engineering et l'ensemble des décisions
+  techniques ont été entièrement conçus par les membres du groupe. Les outils IA
+  ont servi d'assistants à la rédaction et à l'implémentation, non de substituts
+  à la réflexion conceptuelle. Plus précisément, le raisonnement, les décisions
+  de conception, les workflows, le travail de modélisation des données et
+  l'ensemble de la réflexion intellectuelle ont été assurés par les membres du
+  groupe. Les outils d'IA ont été mobilisés uniquement parce qu'ils sont plus
+  rapides que nous dans l'écriture de code et de texte — ils n'ont en aucun cas
+  remplacé la pensée, la stratégie, ni les choix d'architecture qui restent
+  l'œuvre exclusive de l'équipe.
+\end{successbox}
+
+\end{document}
