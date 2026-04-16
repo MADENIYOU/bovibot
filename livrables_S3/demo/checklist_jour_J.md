@@ -6,7 +6,7 @@
 
 \*\*Date\*\* : Jour de soutenance  
 
-\*\*Environnement testé\*\* : VPS (http://http://212.90.121.51:8080/)
+\*\*Environnement testé\*\* : VPS (/http://212.90.121.51:8080/)
 
 
 
